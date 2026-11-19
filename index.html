@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CS2 Arena</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="ui">
+      <div id="hud" class="hidden">
+        <div id="crosshair"></div>
+        <div id="top-bar">
+          <div id="scoreboard">
+            <span id="ct-score" class="ct">0</span>
+            <span id="timer">1:55</span>
+            <span id="t-score" class="t">0</span>
+          </div>
+          <div id="round-info">ROUND <span id="round-num">1</span></div>
+        </div>
+        <div id="bottom-hud">
+          <div id="health-armor">
+            <div class="stat"><span class="label">HP</span><span id="hp">100</span></div>
+            <div class="stat"><span class="label">ARMOR</span><span id="armor">0</span></div>
+          </div>
+          <div id="ammo-money">
+            <div class="stat money"><span class="label">$</span><span id="money">800</span></div>
+            <div class="stat ammo"><span id="ammo-clip">30</span><span class="sep">/</span><span id="ammo-reserve">90</span></div>
+          </div>
+        </div>
+        <div id="killfeed"></div>
+        <div id="center-msg"></div>
+        <div id="weapon-name"></div>
+      </div>
+
+      <div id="buy-menu" class="panel hidden">
+        <h2>BUY MENU</h2>
+        <p class="hint">Press number keys or click · Esc / B to close</p>
+        <div id="buy-categories"></div>
+        <div id="buy-items"></div>
+        <div id="buy-footer">Cash: $<span id="buy-money">800</span></div>
+      </div>
+
+      <div id="controls-menu" class="panel hidden">
+        <h2>CONTROLS</h2>
+        <p class="hint">Click a binding, then press a key · Esc to close</p>
+        <div id="bindings-list"></div>
+        <button id="reset-binds" type="button">Reset to Defaults</button>
+      </div>
+
+      <div id="pause-menu" class="panel hidden">
+        <h2>PAUSED</h2>
+        <button id="resume-btn" type="button">Resume</button>
+        <button id="controls-btn" type="button">Controls</button>
+        <button id="restart-btn" type="button">Restart Match</button>
+      </div>
+
+      <div id="start-screen">
+        <div class="start-inner">
+          <h1>CS2 ARENA</h1>
+          <p>5v5 bot match · economy · buy rounds · realistic movement</p>
+          <ul class="controls-preview">
+            <li><kbd>WASD</kbd> Move</li>
+            <li><kbd>Shift</kbd> Walk</li>
+            <li><kbd>Ctrl</kbd> Duck</li>
+            <li><kbd>R</kbd> Reload</li>
+            <li><kbd>B</kbd> Buy</li>
+            <li><kbd>Esc</kbd> Menu / Controls</li>
+          </ul>
+          <button id="play-btn" type="button">PLAY</button>
+        </div>
+      </div>
+    </div>
+    <canvas id="game"></canvas>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

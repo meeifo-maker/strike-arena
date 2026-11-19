@@ -1,0 +1,24 @@
+{
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "**/viewhands/*-src.*",
+      "**/viewhands/_*/**",
+      "**/viewhands/_*"
+    ],
+    "headers": [
+      {
+        "source": "**/*.glb",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public,max-age=31536000,immutable"
+          }
+        ]
+      }
+    ]
+  }
+}

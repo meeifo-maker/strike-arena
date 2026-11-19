@@ -1,0 +1,30 @@
+[build]
+  publish = "public"
+  # Static site — game lives in public/; skip the unrelated Vite app build
+  command = "echo No build required"
+
+# Block Netlify badge iframes. blob: required for Cache API / object URLs used by model loading.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self' blob:; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob:; media-src 'self' blob:; worker-src 'self' blob:; font-src 'self'; frame-src 'none'; child-src 'none'; object-src 'none'"
+
+[[headers]]
+  for = "/*.glb"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/*.glb"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/weapons/*.glb"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/viewhands/*.glb"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

@@ -1,0 +1,17 @@
+node_modules
+dist
+.DS_Store
+*.log
+
+# Local Netlify / Firebase caches
+.netlify
+.firebase
+
+# Debug / temp
+hands_check*.png
+hands_cs_*.png
+tmp_check.js
+_extract_game.py
+_probe_load.mjs
+_dump_site.*
+_site.json
