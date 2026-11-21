@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Weapon preview</title>
+<style>
+html,body{margin:0;height:100%;background:#1a1a1a;color:#eee;font-family:system-ui,sans-serif;overflow:hidden}
+#hud{position:fixed;left:12px;top:12px;z-index:2;background:rgba(0,0,0,.65);padding:10px 14px;border-radius:8px;line-height:1.5}
+#hud b{color:#ffb02e}
+canvas{display:block;width:100%;height:100%}
+#cross{position:fixed;left:50%;top:50%;width:12px;height:12px;margin:-6px;border:2px solid #7CFF6B;border-radius:50%;pointer-events:none;z-index:2}
+</style></head><body>
+<div id="hud">Loading…</div><div id="cross"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+const IDS=['glock','deagle','mp9','m4','ak','awp','he','flash','smoke'];
+const KIND={glock:'pistol',deagle:'pistol',mp9:'smg',m4:'rifle',ak:'rifle',awp:'rifle',he:'nade',flash:'nade',smoke:'nade'};
+const WANT={glock:.2,deagle:.22,mp9:.32,m4:.4,ak:.4,awp:.48,he:.1,flash:.1,smoke:.1};
+// Per-weapon extra pitch/yaw/roll after auto-fit (tune while previewing)
+const FIX={glock:{rx:0,ry:0,rz:0},deagle:{rx:0,ry:0,rz:0},mp9:{rx:0,ry:0,rz:0},m4:{rx:0,ry:0,rz:0},ak:{rx:0,ry:0,rz:0},awp:{rx:0,ry:0,rz:0},he:{rx:0,ry:0,rz:0},flash:{rx:0,ry:0,rz:0},smoke:{rx:0,ry:0,rz:0}};
+const STEP=Math.PI/8;let idx=0,tpls={},gun;
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(devicePixelRatio);document.body.appendChild(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x2a3038);
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.05,50);
+camera.position.set(0,0,0);scene.add(camera);
+scene.add(new THREE.AmbientLight(0xffffff,.7));
+const L=new THREE.DirectionalLight(0xffffff,.8);L.position.set(2,3,1);scene.add(L);
+const grid=new THREE.GridHelper(20,20,0x555555,0x333333);grid.position.y=-1.6;scene.add(grid);
+const wall=new THREE.Mesh(new THREE.BoxGeometry(8,4,.2),new THREE.MeshStandardMaterial({color:0xc4a882}));wall.position.set(0,0.4,-6);scene.add(wall);
+
+gun=new THREE.Group();gun.position.set(.2,-.14,-.42);camera.add(gun);
+
+function destskin(root){root.updateMatrixWorld(true);const skins=[];root.traverse(o=>{if(o.isSkinnedMesh)skins.push(o)});
+skins.forEach(sm=>{try{if(sm.skeleton)sm.skeleton.pose()}catch(e){}const mesh=new THREE.Mesh(sm.geometry,sm.material);mesh.position.copy(sm.position);mesh.quaternion.copy(sm.quaternion);mesh.scale.copy(sm.scale);if(sm.parent){sm.parent.add(mesh);sm.parent.remove(sm)}});
+const bones=[];root.traverse(o=>{if(o.isBone)bones.push(o)});bones.forEach(b=>{if(b.parent)b.parent.remove(b)})}
+function fit(obj,want){obj.position.set(0,0,0);obj.rotation.set(0,0,0);obj.quaternion.identity();obj.scale.set(1,1,1);obj.updateMatrixWorld(true);
+const recenter=()=>{obj.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(obj);obj.position.sub(b.getCenter(new THREE.Vector3()));obj.updateMatrixWorld(true)};
+const worldRollZ=a=>{obj.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),a));obj.updateMatrixWorld(true);recenter()};
+recenter();let box=new THREE.Box3().setFromObject(obj),size=box.getSize(new THREE.Vector3());
+const ax=[[size.x,new THREE.Vector3(1,0,0)],[size.y,new THREE.Vector3(0,1,0)],[size.z,new THREE.Vector3(0,0,1)]].sort((a,b)=>b[0]-a[0]);
+obj.quaternion.setFromUnitVectors(ax[0][1],new THREE.Vector3(0,0,-1));obj.updateMatrixWorld(true);recenter();
+box=new THREE.Box3().setFromObject(obj);size=box.getSize(new THREE.Vector3());
+if(size.x>size.y){worldRollZ(Math.PI/2);box=new THREE.Box3().setFromObject(obj);size=box.getSize(new THREE.Vector3())}
+const longest=Math.max(size.x,size.y,size.z)||1;obj.scale.setScalar(want/longest);obj.updateMatrixWorld(true);recenter();
+box=new THREE.Box3().setFromObject(obj);size=box.getSize(new THREE.Vector3());
+if(size.y>size.z*1.05){obj.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2));obj.updateMatrixWorld(true);recenter();box=new THREE.Box3().setFromObject(obj);size=box.getSize(new THREE.Vector3());const l=Math.max(size.x,size.y,size.z)||1;obj.scale.multiplyScalar(want/l);obj.updateMatrixWorld(true);recenter();box=new THREE.Box3().setFromObject(obj);size=box.getSize(new THREE.Vector3());if(size.x>size.y)worldRollZ(Math.PI/2)}
+obj.updateMatrixWorld(true);const final=new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());return Math.max(final.x,final.y,final.z)}
+
+function show(i){idx=(i+IDS.length)%IDS.length;const id=IDS[idx];while(gun.children.length)gun.remove(gun.children[0]);
+const tpl=tpls[id];if(!tpl){document.getElementById('hud').innerHTML='Missing '+id;return}
+const w=tpl.clone(true);const base=tpl.userData.lenZ||.5;const want=WANT[id]||.34;w.scale.multiplyScalar(want/base);
+const f=FIX[id]||{};const hold=new THREE.Group();hold.add(w);
+hold.rotation.set(f.rx||0,f.ry||0,f.rz||0);hold.position.set(.02,-.06,.02);gun.add(hold);
+const box=new THREE.Box3().setFromObject(gun);const s=box.getSize(new THREE.Vector3());
+const pi=v=>((v||0)/Math.PI).toFixed(2);
+document.getElementById('hud').innerHTML='<b>'+(idx+1)+'/'+IDS.length+' '+id.toUpperCase()+'</b><br>← → / 1–9 switch · Q/E pitch · R yaw · T roll · F log<br>size '+s.x.toFixed(2)+' × '+s.y.toFixed(2)+' × '+s.z.toFixed(2)+'<br>fix rx='+pi(f.rx)+'π ry='+pi(f.ry)+'π rz='+pi(f.rz)+'π'}
+
+function isolateLargestMesh(root){const meshes=[];root.traverse(o=>{if(o.isMesh)meshes.push(o)});if(meshes.length<2)return;
+let best=null,bestV=-1;meshes.forEach(m=>{try{if(!m.geometry.boundingBox)m.geometry.computeBoundingBox();const s=m.geometry.boundingBox.getSize(new THREE.Vector3()),v=Math.max(s.x,0.001)*Math.max(s.y,0.001)*Math.max(s.z,0.001);if(v>bestV){bestV=v;best=m}}catch(e){}});
+if(!best)return;meshes.forEach(m=>{if(m!==best&&m.parent)m.parent.remove(m)})}
+async function loadOne(id){const urls=['./assets/weapons/'+id+'.glb','/assets/weapons/'+id+'.glb'];
+for(const u of urls){try{const r=await fetch(u);if(!r.ok)continue;const buf=await r.arrayBuffer();
+const g=await new Promise((res,rej)=>new THREE.GLTFLoader().parse(buf,'',res,rej));
+const root=new THREE.Group();root.add(g.scene);destskin(root);
+root.traverse(o=>{if(!o.isMesh)return;o.frustumCulled=false;const mats=Array.isArray(o.material)?o.material:[o.material];mats.forEach(m=>{if(m&&m.map){m.map.encoding=THREE.sRGBEncoding;m.needsUpdate=true}})});
+if(id==='smoke')isolateLargestMesh(root);
+const prep=KIND[id]==='nade'?.1:KIND[id]==='pistol'?.28:KIND[id]==='smg'?.4:.5;
+root.userData.lenZ=fit(root,prep);tpls[id]=root;return}catch(e){}}throw new Error(id)}
+
+(async()=>{for(const id of IDS){document.getElementById('hud').textContent='Loading '+id+'…';try{await loadOne(id)}catch(e){console.warn(e)}}
+show(0);
+addEventListener('keydown',e=>{
+if(e.code==='ArrowRight'||e.code==='KeyD')show(idx+1);
+if(e.code==='ArrowLeft'||e.code==='KeyA')show(idx-1);
+if(e.code.startsWith('Digit')){const n=+e.code.slice(5);if(n>=1&&n<=IDS.length)show(n-1)}
+const id=IDS[idx];const f=FIX[id];
+if(e.code==='KeyQ'){f.rx=((f.rx||0)-STEP);show(idx)}
+if(e.code==='KeyE'){f.rx=((f.rx||0)+STEP);show(idx)}
+if(e.code==='KeyR'){f.ry=((f.ry||0)+STEP)%(Math.PI*2);show(idx)}
+if(e.code==='KeyT'){f.rz=((f.rz||0)+STEP)%(Math.PI*2);show(idx)}
+if(e.code==='KeyF'){console.log('FIX='+JSON.stringify(FIX))}
+});
+function loop(){requestAnimationFrame(loop);renderer.render(scene,camera)}loop();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+})();
+</script></body></html>
