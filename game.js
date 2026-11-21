@@ -548,7 +548,7 @@ function onNetMessage(msg){
     showOv('VICTORY','Opponent quit — you win<br><br><b>Click to return</b>');
     return;
   }
-  if(msg.t==='killed'&&netBot&&netBot.alive){killBot(netBot,!!msg.head,false);return}
+  if(msg.t==='killed'&&netBot&&netBot.alive){killBot(netBot,!!msg.head,false);checkOnlineRound();return}
   if(msg.t==='round'&&Netplay.role==='guest'){
     wins=msg.wins|0;loses=msg.loses|0;
     if(msg.youWin){lossStreak=0;money=Math.min(16000,money+3250)}else{lossStreak++;money=Math.min(16000,money+1400+Math.min(lossStreak-1,4)*500)}
@@ -999,7 +999,7 @@ if(b.hp<=0)killBot(b,hd)}
 const k=Math.floor(recoil);const PAT=[0,0,.2,.3,.1,-.1,-.3,-.5,-.4,-.2,.3,.6,.7,.5,.2,-.3,-.6,-.7,-.4,.1,.5,.6,.3,0,-.3,-.5,-.3,0,.2,.3];
 recoil=Math.min(recoil+1,29);P.pitch+=(k<12?.009:.0015)*W[cur].kick;P.yaw+=(PAT[k]||0)*.006*W[cur].kick+(Math.random()-.5)*.0015;
 if(W[cur].scope)scoped=false;if(ammo<=0)reload();updHud()}
-function killBot(b,hd,ai){b.alive=false;if(!ai){kills++;if(b.team==='ct'){roundKills++;flashRoundKills()}money=Math.min(16000,money+W[cur].kill)}
+function killBot(b,hd,ai){b.alive=false;b.diedAt=performance.now();if(!ai){kills++;if(b.team==='ct'){roundKills++;flashRoundKills()}money=Math.min(16000,money+W[cur].kill)}
 [b.body,b.head,...b.g.userData.limbs].forEach(m=>{let i=botMeshes.indexOf(m);if(i>=0)botMeshes.splice(i,1);i=allyMeshes.indexOf(m);if(i>=0)allyMeshes.splice(i,1)});
 for(let i=0;i<8;i++)stain(b.x+(Math.random()-.5)*1.2,b.z+(Math.random()-.5)*1.2,.12+Math.random()*.25);stain(b.x,b.z,.55);
 feed(ai?(b.team==='ct'?'A teammate got a kill':'A teammate was killed'):(hd?'★ Headshot! ':'')+'Enemy down');updHud()}
@@ -1009,9 +1009,21 @@ function hideViewWeapon(){
   if(viewHandPlate)viewHandPlate.visible=false;
   if(typeof viewHandsRoot!=='undefined'&&viewHandsRoot)viewHandsRoot.visible=false;
 }
-function playerDown(){P.hp=0;P.dead=true;mouseDown=false;scoped=false;hideViewWeapon();
+function playerDown(){P.hp=0;P.dead=true;P.diedAt=performance.now();mouseDown=false;scoped=false;hideViewWeapon();
 feed(online?'You died':'You died — spectating teammates');
-if(online&&window.Netplay)Netplay.send({t:'killed',rd:round})}
+if(online&&window.Netplay){Netplay.send({t:'killed',rd:round});checkOnlineRound()}}
+// Host decides rounds. Called on every death (not only from the render loop, which browsers pause in hidden tabs).
+function checkOnlineRound(){
+  if(!online||state!=='play'||roundTimer>0||!window.Netplay||Netplay.role!=='host'||!netBot)return;
+  const me=!P.dead&&P.hp>0,them=netBot.alive;
+  if(me&&!them)endRound(true);else if(!me&&them)endRound(false);
+  // Trade: whoever died last outlived the other
+  else if(!me&&!them)endRound((P.diedAt||0)>(netBot.diedAt||0));
+}
+// Keep the between-rounds countdown going while the tab is hidden (requestAnimationFrame stops there)
+{let bgT=performance.now();setInterval(()=>{const now=performance.now(),dt=Math.min(2,(now-bgT)/1000);bgT=now;
+  if(!document.hidden||!online||state!=='play'||roundTimer<=0)return;
+  roundTimer-=dt;if(roundTimer<=0){round++;startRound()}},250)}
 
 // Bots (both teams)
 const tv=new THREE.Vector3();
@@ -1120,7 +1132,7 @@ pp.set(P.x,P.y+P.h-.1,P.z);updBots(dt);syncNetplay(dt);
 if(freezeT>0){freezeT-=dt;if(freezeT<=0){freezeT=0;feed('Move! Buy open '+(Math.ceil(buyT))+'s');updHud()}}
 if(buyT>0){buyT-=dt;if(buyT<=0){buyT=0;closeBuy();feed('Buy time over');updHud()}else if(freezeT<=0)updHud()}
 if(roundTimer>0){roundTimer-=dt;if(roundTimer<=0){round++;startRound()}}
-else if(online&&window.Netplay&&Netplay.role==='host'){const me=!P.dead&&P.hp>0,them=netBot&&netBot.alive;if(me&&!them)endRound(true);else if(!me&&them)endRound(false)}
+else if(online)checkOnlineRound();
 else if(!online&&bots.length){const ctA=bots.some(b=>b.alive&&b.team==='ct'),tA=(!P.dead&&P.hp>0)||bots.some(b=>b.alive&&b.team==='t');if(!ctA)endRound(true);else if(!tA)endRound(false)}
 if(feedT>0){feedT-=dt;if(feedT<=0)$('feed').textContent=''}
 }
