@@ -458,8 +458,8 @@ function showLobby(asHost){
   $('lb-role').textContent=asHost?'You are hosting — send this link to a friend':'Joining friend…';
   Netplay.onStatus=(s,d)=>{$('lb-status').textContent=d||s};
   Netplay.onConnected=()=>{
-    peerReady=false;netReady=false;
-    if(Netplay.role==='host')Netplay.send({t:'askready'});
+    peerReady=false;netReady=false;peerBuildBad=false;
+    if(Netplay.role==='host')Netplay.send({t:'askready',build:BUILD});
     sendReady();updLobby();
   };
   Netplay.onDisconnected=()=>{
@@ -482,10 +482,14 @@ function showLobby(asHost){
   }
 }
 // netReady: we told the peer our models are loaded · peerReady: the peer told us theirs are
-function sendReady(){if(window.Netplay&&Netplay.connected&&assetsReady()&&!netReady)netReady=Netplay.send({t:'ready'})}
+// Both players must run the same build — an unrefreshed tab silently breaks round/hit sync
+const BUILD='netfix8';let peerBuildBad=false;
+function sendReady(){if(window.Netplay&&Netplay.connected&&assetsReady()&&!netReady)netReady=Netplay.send({t:'ready',build:BUILD})}
 function updLobby(){
   if(!$('lobby')||$('lobby').style.display!=='flex'||!window.Netplay||!Netplay.connected)return;
   const me=assetsReady(),b=$('lb-start');b.style.display='inline-block';
+  if(peerBuildBad){b.disabled=true;b.style.opacity=.5;b.textContent='Versions differ';
+    $('lb-status').textContent='You and your friend are on different versions — BOTH refresh the page (Ctrl+F5), then make a new invite';return}
   if(Netplay.role==='host'){const ok=me&&peerReady;b.disabled=!ok;b.style.opacity=ok?1:.5;b.textContent=ok?'Start match':'Waiting for models…';
     $('lb-status').textContent=!me?'Opponent connected — loading your models…':!peerReady?'Opponent connected — waiting for their models to load…':'Opponent ready!'}
   else{b.disabled=true;b.style.opacity=.5;b.textContent='Ready — wait for host';
@@ -494,7 +498,7 @@ function updLobby(){
 function beginOnlineMatch(){
   if(!Netplay.connected||Netplay.role!=='host'||!assetsReady()||!peerReady)return;
   online=true;gameMode='online';myTeam='t';
-  Netplay.send({t:'start'});startOnlineGame();
+  Netplay.send({t:'start',build:BUILD});startOnlineGame();
 }
 function startOnlineGame(){
   $('ov').style.display='none';$('mm').style.display='none';if($('lobby'))$('lobby').style.display='none';
@@ -509,9 +513,10 @@ function onNetMessage(msg){
   // PeerJS json may wrap once
   if(msg.data&&msg.data.t)msg=msg.data;
   if(!msg.t)return;
-  if(msg.t==='ready'){peerReady=true;updLobby();return}
-  if(msg.t==='askready'){netReady=false;sendReady();return}
-  if(msg.t==='start'&&Netplay.role==='guest'){online=true;gameMode='online';myTeam='ct';
+  if(msg.t==='ready'){if(msg.build!==BUILD)peerBuildBad=true;else peerReady=true;updLobby();return}
+  if(msg.t==='askready'){if(msg.build!==BUILD){peerBuildBad=true;updLobby();return}netReady=false;sendReady();return}
+  if(msg.t==='start'&&Netplay.role==='guest'){if(msg.build!==BUILD){peerBuildBad=true;updLobby();return}
+    online=true;gameMode='online';myTeam='ct';
     const go=()=>{if(!assetsReady()){setTimeout(go,200);return}startOnlineGame()};go();return}
   // Packets tagged with an older round (hit/killed/state still in flight) must not leak into this one
   if(msg.rd!=null&&msg.rd!==round&&(msg.t==='hit'||msg.t==='killed'))return;
