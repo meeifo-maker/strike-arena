@@ -31,6 +31,7 @@ scene.background = new THREE.Color(0x87a0b5);
 scene.fog = new THREE.Fog(0x87a0b5, 40, 95);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 200);
+setMenuCamera();
 
 const hemi = new THREE.HemisphereLight(0xbdd4ea, 0x3a3030, 0.85);
 scene.add(hemi);
@@ -90,6 +91,7 @@ ui.onRestart = () => {
   ui.closeControls();
   startMatch();
 };
+ui.onMainMenu = () => returnToMainMenu();
 ui.onBuy = (id) => {
   if (!player) return;
   if (id == null) {
@@ -145,11 +147,31 @@ function createViewmodel() {
   return g;
 }
 
-function startMatch() {
-  // cleanup
+function setMenuCamera() {
+  camera.position.set(-18, 12, 22);
+  camera.lookAt(0, 1.5, 0);
+}
+
+function clearMatchActors() {
   for (const p of pawns) scene.remove(p.mesh);
   pawns = [];
   bots = [];
+  player = null;
+  gunView.visible = false;
+}
+
+function returnToMainMenu() {
+  running = false;
+  paused = false;
+  clearMatchActors();
+  document.exitPointerLock?.();
+  setMenuCamera();
+  ui.showMainMenu();
+}
+
+function startMatch() {
+  // cleanup
+  clearMatchActors();
 
   player = createPawn(scene, TEAM.CT, "You", true);
   player.money = ECONOMY.startMoney;
@@ -187,6 +209,7 @@ function startMatch() {
   running = true;
   paused = false;
   gunView.visible = true;
+  ui.hideMainMenu();
   ui.showHud();
   ui.closeBuy();
   ui.closePause();
@@ -355,15 +378,14 @@ function handleMenus(e) {
 }
 
 window.addEventListener("keydown", (e) => {
-  if (!running) return;
-
   if (e.code === input.binds.pause || e.code === "Escape") {
+    if (ui.mainMenuOpen && !ui.controlsOpen) return;
     e.preventDefault();
     if (ui.controlsOpen) {
       ui.closeControls();
-      ui.openPause();
       return;
     }
+    if (!running) return;
     if (ui.buyOpen) {
       ui.closeBuy();
       lockPointer();
@@ -380,7 +402,7 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  if (paused || ui.controlsOpen) return;
+  if (!running || paused || ui.controlsOpen) return;
 
   if (!e.repeat && e.code === input.binds.buy) {
     const inBuyWindow =
@@ -404,6 +426,11 @@ function frame(now) {
   last = now;
 
   if (!running || !player) {
+    if (ui.mainMenuOpen) {
+      const t = now * 0.00015;
+      camera.position.set(Math.cos(t) * 28, 11 + Math.sin(t * 0.7) * 1.5, Math.sin(t) * 28);
+      camera.lookAt(0, 1.2, 0);
+    }
     renderer.render(scene, camera);
     return;
   }

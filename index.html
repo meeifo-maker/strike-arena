@@ -53,21 +53,30 @@
         <button id="resume-btn" type="button">Resume</button>
         <button id="controls-btn" type="button">Controls</button>
         <button id="restart-btn" type="button">Restart Match</button>
+        <button id="main-menu-btn" type="button">Main Menu</button>
       </div>
 
-      <div id="start-screen">
-        <div class="start-inner">
+      <div id="main-menu">
+        <div class="menu-backdrop"></div>
+        <div class="menu-inner">
+          <p class="menu-eyebrow">BROWSER FPS</p>
           <h1>CS2 ARENA</h1>
-          <p>5v5 bot match · economy · buy rounds · realistic movement</p>
-          <ul class="controls-preview">
-            <li><kbd>WASD</kbd> Move</li>
-            <li><kbd>Shift</kbd> Walk</li>
-            <li><kbd>Ctrl</kbd> Duck</li>
-            <li><kbd>R</kbd> Reload</li>
-            <li><kbd>B</kbd> Buy</li>
-            <li><kbd>Esc</kbd> Menu / Controls</li>
-          </ul>
-          <button id="play-btn" type="button">PLAY</button>
+          <p class="menu-tagline">5v5 bot match · economy · buy rounds</p>
+          <nav class="menu-actions" aria-label="Main menu">
+            <button id="play-btn" type="button">Play</button>
+            <button id="menu-controls-btn" type="button">Controls</button>
+            <button id="menu-how-btn" type="button">How to Play</button>
+          </nav>
+          <div id="how-to-play" class="how-to-play hidden">
+            <ul class="controls-preview">
+              <li><kbd>WASD</kbd> Move</li>
+              <li><kbd>Shift</kbd> Walk</li>
+              <li><kbd>Ctrl</kbd> Duck</li>
+              <li><kbd>R</kbd> Reload</li>
+              <li><kbd>B</kbd> Buy</li>
+              <li><kbd>Esc</kbd> Pause</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>

@@ -252,7 +252,7 @@ body {
 }
 
 .panel button,
-#start-screen button {
+#main-menu button {
   pointer-events: auto;
   cursor: pointer;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -267,7 +267,7 @@ body {
 }
 
 .panel button:hover,
-#start-screen button:hover {
+#main-menu button:hover {
   background: rgba(91, 155, 213, 0.25);
   border-color: #5b9bd5;
 }
@@ -370,26 +370,44 @@ body {
   color: #d4a017;
 }
 
-#start-screen {
+#main-menu {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(ellipse at 50% 20%, rgba(40, 60, 80, 0.55), transparent 55%),
-    linear-gradient(180deg, #0b1016 0%, #121820 100%);
   pointer-events: auto;
+  z-index: 20;
 }
 
-.start-inner {
+.menu-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 18%, rgba(55, 90, 120, 0.45), transparent 52%),
+    linear-gradient(180deg, rgba(8, 12, 18, 0.72) 0%, rgba(10, 14, 20, 0.88) 100%);
+  pointer-events: none;
+}
+
+.menu-inner {
+  position: relative;
   text-align: center;
-  max-width: 480px;
-  padding: 20px;
+  width: min(380px, 90vw);
+  padding: 36px 32px 40px;
+  background: rgba(12, 16, 20, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
 }
 
-.start-inner h1 {
-  font-size: 56px;
+.menu-eyebrow {
+  font-size: 11px;
+  letter-spacing: 4px;
+  opacity: 0.55;
+  margin-bottom: 10px;
+}
+
+.menu-inner h1 {
+  font-size: clamp(36px, 8vw, 52px);
   letter-spacing: 8px;
   font-weight: 800;
   margin-bottom: 10px;
@@ -399,19 +417,50 @@ body {
   color: transparent;
 }
 
-.start-inner > p {
-  opacity: 0.7;
+.menu-tagline {
+  opacity: 0.65;
   margin-bottom: 28px;
-  font-size: 14px;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
+.menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.menu-actions button {
+  margin-top: 8px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+#play-btn {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  padding: 14px 18px;
+  background: rgba(91, 155, 213, 0.22);
+  border-color: rgba(91, 155, 213, 0.55);
+}
+
+#play-btn:hover {
+  background: rgba(91, 155, 213, 0.38);
+}
+
+.how-to-play {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .controls-preview {
   list-style: none;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px 20px;
+  gap: 10px 16px;
   text-align: left;
-  margin-bottom: 28px;
   font-size: 13px;
 }
 
@@ -424,13 +473,4 @@ body {
   background: rgba(0, 0, 0, 0.4);
   font-size: 11px;
   text-align: center;
-}
-
-#play-btn {
-  width: auto;
-  min-width: 200px;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  padding: 14px 36px;
 }

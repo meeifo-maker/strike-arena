@@ -8,14 +8,20 @@ export class UI {
     this.buyOpen = false;
     this.controlsOpen = false;
     this.pauseOpen = false;
+    this.mainMenuOpen = true;
+    this.controlsReturnTo = "main";
     this.onBuy = null;
     this.onResume = null;
     this.onRestart = null;
+    this.onMainMenu = null;
 
     this.els = {
       hud: document.getElementById("hud"),
-      start: document.getElementById("start-screen"),
+      mainMenu: document.getElementById("main-menu"),
       play: document.getElementById("play-btn"),
+      menuControls: document.getElementById("menu-controls-btn"),
+      menuHow: document.getElementById("menu-how-btn"),
+      howToPlay: document.getElementById("how-to-play"),
       hp: document.getElementById("hp"),
       armor: document.getElementById("armor"),
       money: document.getElementById("money"),
@@ -39,12 +45,18 @@ export class UI {
       resume: document.getElementById("resume-btn"),
       controlsBtn: document.getElementById("controls-btn"),
       restart: document.getElementById("restart-btn"),
+      mainMenuBtn: document.getElementById("main-menu-btn"),
     };
 
     this.els.play.addEventListener("click", () => this.onPlay?.());
     this.els.resume.addEventListener("click", () => this.onResume?.());
     this.els.restart.addEventListener("click", () => this.onRestart?.());
-    this.els.controlsBtn.addEventListener("click", () => this.openControls());
+    this.els.mainMenuBtn.addEventListener("click", () => this.onMainMenu?.());
+    this.els.controlsBtn.addEventListener("click", () => this.openControls("pause"));
+    this.els.menuControls.addEventListener("click", () => this.openControls("main"));
+    this.els.menuHow.addEventListener("click", () => {
+      this.els.howToPlay.classList.toggle("hidden");
+    });
     this.els.resetBinds.addEventListener("click", () => {
       this.input.reset();
       this.renderBindings();
@@ -56,8 +68,25 @@ export class UI {
   }
 
   showHud() {
-    this.els.start.classList.add("hidden");
+    this.hideMainMenu();
     this.els.hud.classList.remove("hidden");
+  }
+
+  showMainMenu() {
+    this.mainMenuOpen = true;
+    this.closeBuy();
+    this.closePause();
+    this.closeControls();
+    this.els.howToPlay.classList.add("hidden");
+    this.els.hud.classList.add("hidden");
+    this.els.mainMenu.classList.remove("hidden");
+    this.els.center.classList.remove("show");
+    this.els.killfeed.innerHTML = "";
+  }
+
+  hideMainMenu() {
+    this.mainMenuOpen = false;
+    this.els.mainMenu.classList.add("hidden");
   }
 
   updateHud(player, match) {
@@ -217,17 +246,25 @@ export class UI {
     this.els.pause.classList.add("hidden");
   }
 
-  openControls() {
+  openControls(returnTo = "pause") {
+    this.controlsReturnTo = returnTo;
     this.controlsOpen = true;
     this.els.controls.classList.remove("hidden");
     this.els.pause.classList.add("hidden");
+    if (returnTo === "main") this.els.mainMenu.classList.add("hidden");
     this.renderBindings();
   }
 
   closeControls() {
+    const returnTo = this.controlsReturnTo;
     this.controlsOpen = false;
     this.input.listening = null;
     this.els.controls.classList.add("hidden");
+    if (returnTo === "main" && this.mainMenuOpen) {
+      this.els.mainMenu.classList.remove("hidden");
+    } else if (returnTo === "pause" && this.pauseOpen) {
+      this.els.pause.classList.remove("hidden");
+    }
   }
 
   renderBindings() {
@@ -247,7 +284,7 @@ export class UI {
   }
 
   anyMenuOpen() {
-    return this.buyOpen || this.controlsOpen || this.pauseOpen;
+    return this.buyOpen || this.controlsOpen || this.pauseOpen || this.mainMenuOpen;
   }
 }
 
