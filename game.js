@@ -95,12 +95,14 @@ const gun=new THREE.Group();
 const flash=new THREE.Mesh(new THREE.OctahedronGeometry(.035,0).scale(1,1,2.2),new THREE.MeshBasicMaterial({color:0xffc860,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));flash.position.z=-.35;flash.visible=false;
 const MT={s:new THREE.MeshStandardMaterial({color:0x2a2c30,metalness:.85,roughness:.38}),d:new THREE.MeshStandardMaterial({color:0x17181b,metalness:.3,roughness:.6}),w:new THREE.MeshStandardMaterial({map:mkTex('#74401f',1,false),roughness:.65}),g:new THREE.MeshStandardMaterial({color:0x17181b,roughness:.8}),l:new THREE.MeshStandardMaterial({color:0x3a4234,roughness:.9}),b:new THREE.MeshStandardMaterial({color:0x0e0e10,metalness:.6,roughness:.45}),o:new THREE.MeshStandardMaterial({color:0x4a5238,roughness:.6})};
 const W={
-glock:{n:'Glock-18',price:0,slot:2,mag:20,res:120,rate:.14,auto:false,dmg:28,base:.003,mv:.03,rs:.0003,kick:.55,rl:2.2,spd:1,kill:300},
-deagle:{n:'Desert Eagle',price:700,slot:2,mag:7,res:35,rate:.23,auto:false,dmg:55,base:.003,mv:.04,rs:.0006,kick:2.6,rl:2.2,spd:.97,kill:300},
-mp9:{n:'MP9',price:1250,slot:1,mag:30,res:120,rate:.07,auto:true,dmg:26,base:.003,mv:.012,rs:.0006,kick:.5,rl:2.1,spd:1.05,kill:600},
-m4:{n:'M4A1-S',price:2900,slot:1,mag:20,res:80,rate:.09,auto:true,dmg:33,base:.0015,mv:.03,rs:.0007,kick:.8,rl:2.3,spd:.95,kill:300},
-ak:{n:'AK-47',price:2700,slot:1,mag:30,res:90,rate:.1,auto:true,dmg:36,base:.0015,mv:.035,rs:.0009,kick:1.1,rl:2.4,spd:.92,kill:300},
-awp:{n:'AWP',price:4750,slot:1,mag:5,res:30,rate:1.4,auto:false,dmg:115,base:.0002,mv:.07,rs:0,kick:5,rl:3.2,spd:.8,scope:true,kill:100}};
+// rate = seconds between shots (CS2 cycle times). rs = extra spread per consecutive shot, capped at sc shots.
+// vk = how hard the view model jumps up per shot.
+glock:{n:'Glock-18',price:0,slot:2,mag:20,res:120,rate:.15,auto:false,dmg:28,base:.003,mv:.03,rs:.0028,sc:6,kick:.55,vk:.55,rl:2.2,spd:1,kill:300},
+deagle:{n:'Desert Eagle',price:700,slot:2,mag:7,res:35,rate:.225,auto:false,dmg:55,base:.003,mv:.04,rs:.014,sc:3,kick:2.6,vk:1.6,rl:2.2,spd:.97,kill:300},
+mp9:{n:'MP9',price:1250,slot:1,mag:30,res:120,rate:.07,auto:true,dmg:26,base:.003,mv:.012,rs:.0026,sc:12,kick:.5,vk:.35,rl:2.1,spd:1.05,kill:600},
+m4:{n:'M4A1-S',price:2900,slot:1,mag:20,res:80,rate:.1,auto:true,dmg:33,base:.0015,mv:.03,rs:.0024,sc:12,kick:.8,vk:.45,rl:2.3,spd:.95,kill:300},
+ak:{n:'AK-47',price:2700,slot:1,mag:30,res:90,rate:.1,auto:true,dmg:36,base:.0015,mv:.035,rs:.0034,sc:12,kick:1.1,vk:.6,rl:2.4,spd:.92,kill:300},
+awp:{n:'AWP',price:4750,slot:1,mag:5,res:30,rate:1.46,auto:false,dmg:115,base:.0002,mv:.07,rs:0,sc:1,kick:5,vk:2.2,rl:3.2,spd:.8,scope:true,kill:100}};
 let custom=null,cfgM={id:'ak',size:1,rot:0,x:0,y:0,z:-.1},nades={he:1,flash:1,smoke:1},cur='glock',scoped=false,crouch=false,semiLock=false,armor=0,money=800,wins=0,loses=0,lossStreak=0,freezeT=0,buyT=0,buyOpen=false,inv={glock:{ammo:20,reserve:120}},roundKills=0;
 function fitWeaponToBox(obj,want){obj.position.set(0,0,0);obj.rotation.set(0,0,0);obj.quaternion.identity();obj.scale.set(1,1,1);obj.updateMatrixWorld(true);
 const recenter=()=>{obj.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(obj);obj.position.sub(b.getCenter(new THREE.Vector3()));obj.updateMatrixWorld(true)};
@@ -632,7 +634,7 @@ renderer.domElement.addEventListener('click',()=>{if(state==='play'&&!buyOpen&&d
 
 // State
 const P={x:0,z:25,yaw:0,pitch:0,hp:100,speed:0,h:1.6,y:0,vy:0,gnd:true,dead:false};
-let ammo=20,reserve=120,reloading=0,fireCd=0,recoil=0,round=1,kills=0,state='menu',roundTimer=0,hadLock=false,kick=0;
+let ammo=20,reserve=120,reloading=0,fireCd=0,recoil=0,round=1,kills=0,state='menu',roundTimer=0,hadLock=false,kick=0,vkick=0;
 const keys={};let mouseDown=false;let stepT=0,ladCd=0;const ldir={x:0,z:0};let mx=innerWidth/2,my=innerHeight/2;let swX=0,swY=0,lyaw=0,lpit=0;
 const bots=[],botMeshes=[],allyMeshes=[];
 const ray=new THREE.Raycaster();
@@ -1072,8 +1074,8 @@ function onlineHitscan(shotDir){
   return applyOnlineHit(hd,hd?W[cur].dmg*4:W[cur].dmg,new THREE.Vector3(cx,cy,cz));
 }
 function shoot(){
-if(W[cur].melee){slash();return}if(W[cur].nade){throwNade();return}ammo--;fireCd=W[cur].rate;kick=1;flash.visible=true;flash.rotation.z=Math.random()*6.28;mlight.intensity=2.5;setTimeout(()=>{flash.visible=false;mlight.intensity=0},45);snd(.6,.22,3000);
-const sp=(()=>{const w=W[cur];let b=w.base;if(w.scope&&!scoped)b=.06;const mv=P.speed>.9?1:(P.speed>0?.1:0);return (b+w.mv*mv+(P.gnd?0:.05))*(crouch?.45:1)+Math.min(recoil,8)*w.rs*(crouch?.7:1)})();
+if(W[cur].melee){slash();return}if(W[cur].nade){throwNade();return}ammo--;fireCd=W[cur].rate;kick=1;vkick=Math.min(vkick+(W[cur].vk||.5),2.2);flash.visible=true;flash.rotation.z=Math.random()*6.28;mlight.intensity=2.5;setTimeout(()=>{flash.visible=false;mlight.intensity=0},45);snd(.6,.22,3000);
+const sp=(()=>{const w=W[cur];let b=w.base;if(w.scope&&!scoped)b=.06;const mv=P.speed>.9?1:(P.speed>0?.1:0);return (b+w.mv*mv+(P.gnd?0:.05))*(crouch?.45:1)+Math.min(recoil,w.sc||8)*w.rs*(crouch?.7:1)})();
 const shotDir=tmp.set((Math.random()-.5)*2*sp,(Math.random()-.5)*2*sp,-1).normalize().applyQuaternion(camera.quaternion).clone();
 ray.set(camera.position,shotDir);ray.far=100;
 const end=ray.ray.at(60,new THREE.Vector3());
@@ -1222,7 +1224,7 @@ const sp=(crouch?1.7:(walk?2.6:5.2))*W[cur].spd*(P.lad?.4:1);
 if(fx||fz){const l=Math.hypot(fx,fz);fx/=l;fz/=l;
 const c=Math.cos(P.yaw),s=Math.sin(P.yaw);move(P,(fx*c+fz*s)*sp*dt,(-fx*s+fz*c)*sp*dt,.4);P.speed=crouch?.35:(walk?.5:1);if(!walk&&!crouch){stepT-=dt;if(stepT<=0){stepT=.36;snd(.12,.05,500)}}}else P.speed=0;
 recoil=Math.max(0,recoil-dt*(mouseDown?3:9));
-fireCd-=dt;kick=Math.max(0,kick-dt*10);
+fireCd-=dt;kick=Math.max(0,kick-dt*10);vkick*=Math.exp(-dt*9);
 if(reloading>0){reloading-=dt;if(reloading<=0){const n=Math.min(W[cur].mag-ammo,reserve);ammo+=n;reserve-=n;reloading=0;updHud()}}
 if(!escMenu&&mouseDown&&!buyOpen&&!menuOpen()&&document.pointerLockElement===cv&&!P.dead&&fireCd<=0&&reloading<=0&&ammo>0&&freezeT<=0&&performance.now()>=menuGrace&&(W[cur].auto||!semiLock)){shoot();if(!W[cur].auto)semiLock=true}
 if(!escMenu&&keys[K.jump]&&P.lad&&!P.dead){P.lad=null;ladCd=.4;P.vy=3.5;P.gnd=false;move(P,-P.ldx*.35,-P.ldz*.35,.4)}
@@ -1262,8 +1264,8 @@ if(viewHandsRoot)viewHandsRoot.visible=true;
 const rl=reloading>0?Math.sin(Math.min(1,1-reloading/W[cur].rl)*Math.PI):0;
 const cat=viewCat(cur),vp=VIEW_POSE[cat]||VIEW_POSE.rifle;const gy=gun.userData.loaded?vp.gy:-.2;
 lyaw=P.yaw;lpit=P.pitch;swY=0;swX=0;
-gun.position.set(vp.gx,gy-rl*.05,vp.gz+kick*.005);
-gun.rotation.set((vp.tip||0)+kick*.006+rl*.12,0,0);
+gun.position.set(vp.gx,gy-rl*.05+vkick*.012,vp.gz+kick*.005+vkick*.035);
+gun.rotation.set((vp.tip||0)+kick*.006+rl*.12+vkick*.07,0,0);
 const wantKey=handPlateKey(cat);
 if(viewGlove&&viewGlove.parent===gun){if(gun.userData.viewCat!==cat)mountViewHands()}
 else if(!viewHandPlate||viewHandPlate.userData.handKey!==wantKey||gun.userData.viewCat!==cat||gloveState==='ready')mountViewHands();
@@ -1271,7 +1273,7 @@ else if(viewHandPlate){viewHandPlate.visible=gun.visible;viewHandPlate.position.
 if(viewHandPlate.geometry){const nw=vp.psx||.9,nh=vp.psy||.85;if(Math.abs(viewHandPlate.geometry.parameters.width-nw)>.001){viewHandPlate.geometry.dispose();viewHandPlate.geometry=new THREE.PlaneGeometry(nw,nh)}}}
 if(viewGlove)viewGlove.visible=gun.visible;if(viewHandPlate)viewHandPlate.visible=gun.visible;
 }
-const sc=(.6+P.speed*1.6+Math.min(recoil,8)*.12)*(crouch?.75:1);$('cross').style.display=scoped?'none':'';$('cross').style.transform='scale('+sc+')';
+const sc=(.6+P.speed*1.6+Math.min(recoil,W[cur].sc||8)*W[cur].rs*40)*(crouch?.75:1);$('cross').style.display=scoped?'none':'';$('cross').style.transform='scale('+sc+')';
 pp.set(P.x,P.y+P.h-.1,P.z);updBots(dt);syncNetplay(dt);
 if(freezeT>0){freezeT-=dt;if(freezeT<=0){freezeT=0;feed('Move! Buy open '+(Math.ceil(buyT))+'s');updHud()}}
 if(buyT>0){buyT-=dt;if(buyT<=0){buyT=0;closeBuy();feed('Buy time over');updHud()}else if(freezeT<=0)updHud()}
