@@ -84,7 +84,7 @@ function groundAt(x,z,y){if(world){const g=world.ground(x,z,y+world.STEP);return
 
 // Gun
 const gun=new THREE.Group();
-const flash=new THREE.Mesh(new THREE.BoxGeometry(.12,.12,.12),new THREE.MeshBasicMaterial({color:0xffd060}));flash.position.z=-.35;flash.visible=false;
+const flash=new THREE.Mesh(new THREE.OctahedronGeometry(.035,0).scale(1,1,2.2),new THREE.MeshBasicMaterial({color:0xffc860,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));flash.position.z=-.35;flash.visible=false;
 const MT={s:new THREE.MeshStandardMaterial({color:0x2a2c30,metalness:.85,roughness:.38}),d:new THREE.MeshStandardMaterial({color:0x17181b,metalness:.3,roughness:.6}),w:new THREE.MeshStandardMaterial({map:mkTex('#74401f',1,false),roughness:.65}),g:new THREE.MeshStandardMaterial({color:0x17181b,roughness:.8}),l:new THREE.MeshStandardMaterial({color:0x3a4234,roughness:.9}),b:new THREE.MeshStandardMaterial({color:0x0e0e10,metalness:.6,roughness:.45}),o:new THREE.MeshStandardMaterial({color:0x4a5238,roughness:.6})};
 const W={
 glock:{n:'Glock-18',price:0,slot:2,mag:20,res:120,rate:.14,auto:false,dmg:28,base:.003,mv:.03,rs:.0003,kick:.55,rl:2.2,spd:1,kill:300},
@@ -690,10 +690,13 @@ gun.scale.multiplyScalar(.75/long);gun.updateMatrixWorld(true);
 box.setFromObject(gun);const mid=box.getCenter(new THREE.Vector3());gun.position.set(-mid.x,-mid.y,-mid.z);return gun}
 function mountBotGun(rig,model,team,bones){const gun=fitTpGun(cloneWeapon(botGunTpl(team)));
 gun.traverse(o=>{if(o.isMesh){o.frustumCulled=false;o.visible=true;o.renderOrder=2}});
-const fl=new THREE.Mesh(sph(.05,8,6),FLM);fl.position.set(0,.02,-.26);fl.visible=false;gun.add(fl);
 // Chest-mounted, muzzle along the bot's forward (-Z); the arms are then IK'd onto it.
 const hold=new THREE.Group();hold.position.set(.1,1.25,-.3);hold.rotation.set(.04,0,0);
-hold.add(gun);rig.add(hold);return{rg:hold,fl}}
+hold.add(gun);rig.add(hold);
+// Flash lives on the holder, not the gun: weapon models are scaled ~25x, which made it a 3m sphere
+rig.updateMatrixWorld(true);const inv=new THREE.Matrix4().copy(hold.matrixWorld).invert(),gb=new THREE.Box3().setFromObject(gun).applyMatrix4(inv),ws=new THREE.Vector3().setFromMatrixScale(hold.matrixWorld);
+const fl=new THREE.Mesh(sph(.05,8,6),FLM);fl.position.set((gb.min.x+gb.max.x)/2,gb.max.y-(gb.max.y-gb.min.y)*.3,gb.min.z-.03/ws.z);fl.scale.set(1/ws.x,1/ws.y,1/ws.z);fl.visible=false;hold.add(fl);
+return{rg:hold,fl}}
 function alignBoneAxis(bone,worldTarget){if(!bone||!bone.parent)return;const child=bone.children.find(c=>c.isBone);if(!child||child.position.lengthSq()<1e-10)return;
 const axis=alignBoneAxis._a||(alignBoneAxis._a=new THREE.Vector3()),o=alignBoneAxis._o||(alignBoneAxis._o=new THREE.Vector3());
 const want=alignBoneAxis._w||(alignBoneAxis._w=new THREE.Vector3()),cur=alignBoneAxis._c||(alignBoneAxis._c=new THREE.Vector3());
@@ -819,6 +822,9 @@ arenaObjs.forEach(o=>o.visible=!w);
 boxes.length=0;boxMeshes.length=0;
 if(w)boxMeshes.push(w.proxy);else{boxes.push(...arenaBoxes);boxMeshes.push(...arenaBoxMeshes)}
 scene.fog.near=w?45:30;scene.fog.far=w?170:100;
+// 4096² shadows over the full map mesh drop laptop GPUs to ~15fps; 2048² over a tighter box looks the same
+const ss=w?2048:4096,sb=w?36:42;if(sun.shadow.mapSize.x!==ss){sun.shadow.mapSize.set(ss,ss);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null}}
+sh.left=sh.bottom=-sb;sh.right=sh.top=sb;sh.updateProjectionMatrix();
 if(!w){sun.position.set(25,40,15);sun.target.position.set(0,0,0);sun.target.updateMatrixWorld()}}
 function setMapChoice(id){mapId=id;try{localStorage.setItem('strike_map',id)}catch(e){}if(id!=='arena')loadMap(id);applyMap(id);refreshLoadUi();updMapBtn()}
 function updMapBtn(){const b=$('mm-map');if(b)b.textContent='Map: '+(mapId==='arena'?'Arena':MAPS[mapId].name)}
@@ -944,6 +950,10 @@ function stain(x,z,s,y){const m=new THREE.Mesh(stG,stM);m.rotation.x=-Math.PI/2;
 function tracer(a,b){const m=new THREE.Line(new THREE.BufferGeometry().setFromPoints([a,b]),new THREE.LineBasicMaterial({color:0xffe9a0,transparent:true,opacity:.7}));m.userData.t=.06;scene.add(m);fx.push(m)}
 function decal(h){const n=h.face.normal.clone().transformDirection(h.object.matrixWorld);const m=new THREE.Mesh(new THREE.CircleGeometry(.045,8),new THREE.MeshBasicMaterial({color:0x151515,transparent:true,opacity:.85,polygonOffset:true,polygonOffsetFactor:-4}));m.position.copy(h.point).addScaledVector(n,.01);m.lookAt(h.point.clone().add(n));scene.add(m);decals.push(m);if(decals.length>80)scene.remove(decals.shift())}
 function burst(p,n,col,sp){const bl=col===0x7a0c0c,fy=world?groundAt(p.x,p.z,p.y):0;for(let i=0;i<n;i++){const m=new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.04),new THREE.MeshBasicMaterial({color:col}));m.position.copy(p);m.userData.v=new THREE.Vector3((Math.random()-.5)*sp,Math.random()*sp*.8,(Math.random()-.5)*sp);m.userData.t=bl?1.2:.5;m.userData.blood=bl;m.userData.fy=fy;scene.add(m);parts.push(m)}}
+const shG=new THREE.BoxGeometry(.009,.009,.024),shM=new THREE.MeshBasicMaterial({color:0xd4a537});
+function ejectShell(){const q=camera.getWorldQuaternion(new THREE.Quaternion()),m=new THREE.Mesh(shG,shM);
+m.position.copy(new THREE.Vector3(.14,-.1,-.45).applyMatrix4(camera.matrixWorld));m.quaternion.copy(q);
+m.userData.v=new THREE.Vector3(1.6+Math.random()*.8,1.2+Math.random()*.6,.3).applyQuaternion(q);m.userData.t=.6;m.userData.fy=world?groundAt(m.position.x,m.position.z,m.position.y):0;scene.add(m);parts.push(m)}
 // Audio
 let ac,rv=null;function snd(vol,dur,freq){if(!ac)return;const n=ac.sampleRate*dur,buf=ac.createBuffer(1,n,ac.sampleRate),d=buf.getChannelData(0);
 for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,3);
@@ -1053,12 +1063,12 @@ function onlineHitscan(shotDir){
   return applyOnlineHit(hd,hd?W[cur].dmg*4:W[cur].dmg,new THREE.Vector3(cx,cy,cz));
 }
 function shoot(){
-if(W[cur].melee){slash();return}if(W[cur].nade){throwNade();return}ammo--;fireCd=W[cur].rate;kick=1;flash.visible=true;mlight.intensity=2.5;setTimeout(()=>{flash.visible=false;mlight.intensity=0},45);snd(.6,.22,3000);
+if(W[cur].melee){slash();return}if(W[cur].nade){throwNade();return}ammo--;fireCd=W[cur].rate;kick=1;flash.visible=true;flash.rotation.z=Math.random()*6.28;mlight.intensity=2.5;setTimeout(()=>{flash.visible=false;mlight.intensity=0},45);snd(.6,.22,3000);
 const sp=(()=>{const w=W[cur];let b=w.base;if(w.scope&&!scoped)b=.06;const mv=P.speed>.9?1:(P.speed>0?.1:0);return (b+w.mv*mv+(P.gnd?0:.05))*(crouch?.45:1)+Math.min(recoil,8)*w.rs*(crouch?.7:1)})();
 const shotDir=tmp.set((Math.random()-.5)*2*sp,(Math.random()-.5)*2*sp,-1).normalize().applyQuaternion(camera.quaternion).clone();
 ray.set(camera.position,shotDir);ray.far=100;
 const end=ray.ray.at(60,new THREE.Vector3());
-tracer(flash.getWorldPosition(new THREE.Vector3()),end);{const cp=new THREE.Vector3(.12,-.12,-.3).applyMatrix4(camera.matrixWorld);burst(cp,1,0xd4a537,2.5)}
+tracer(flash.getWorldPosition(new THREE.Vector3()),end);ejectShell();
 if(online){onlineHitscan(shotDir)}
 else{
 const hs=ray.intersectObjects(boxMeshes.concat(botMeshes),false);
