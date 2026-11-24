@@ -73,12 +73,18 @@ solid(-12,19,3,.6,0,1,mt(0,3,1));solid(12,22,3,.6,0,1,mt(0,3,1));solid(0,17,3,.6
 const arenaObjs=scene.children.filter(o=>!preArena.has(o)&&!o.isSprite),arenaBoxes=boxes.slice(),arenaBoxMeshes=boxMeshes.slice();
 // Loaded maps (mapworld.js). Spawn points are Mirage's own, converted to this file's coordinates.
 const MAPS={mirage:{name:'Mirage',file:'assets/maps/mirage.bin',key:'map-mirage-v1',
-  t:{x:23.9,y:-4.19,z:57.7,look:[0,57.7],r:5},ct:{x:-22.7,y:-6.81,z:-13.2,look:[-40,-13],r:5}}};
+  t:{x:23.9,y:-4.19,z:57.7,look:[0,57.7],r:5},ct:{x:-22.7,y:-6.81,z:-13.2,look:[-40,-13],r:5},
+  // From tools/find-ladders.cjs: [x, z, widthAxis (0=x,1=z), width, yBottom, yTop]
+  ladders:[[18.25,0.21,0,0.96,-6.72,-1.35],[18.17,1.35,0,0.96,-6.72,-1.35],[17.4,-0.21,1,0.97,-6.59,-1.18],[17.48,-1.4,1,0.97,-6.59,-1.18],[20.42,-0.19,1,0.97,-6.59,-1.18],[17.35,3.66,1,0.46,-4.75,-0.86],[21.94,-0.22,1,0.96,-4.43,0.98],[21.84,-1.44,1,0.97,-4.43,0.98],[-5.23,-5.91,1,0.97,-4.02,1.39],[0.42,-5.36,0,0.96,-4.02,1.4],[1.83,-5.91,1,0.97,-4.02,1.4],[-25.69,33.02,0,0.96,-4.02,7.08],[-28.33,33.02,0,0.96,-4.02,7.08],[-29.34,33.02,0,0.97,-4.02,1.4],[-9.2,52.31,1,0.96,3.09,8.5],[-9.2,54.08,1,0.96,3.09,8.5],[-9.2,55.46,1,0.97,3.09,14.19],[-9.2,57.28,1,0.96,3.09,14.19]]}};
 let mapId=(()=>{try{const m=localStorage.getItem('strike_map');return m==='arena'||MAPS[m]?m:'mirage'}catch(e){return'mirage'}})();
 const mapW={},mapSt={};let world=null;
 function mapReady(id){id=id||mapId;return id==='arena'||mapSt[id]==='ready'||mapSt[id]==='failed'}
 function hits(x,z,r,y){if(world)return world.blocked(x,z,r,(y||0)+world.STEP,(y||0)+1.7);for(const b of boxes)if(Math.abs(x-b.x)<b.w/2+r&&Math.abs(z-b.z)<b.d/2+r&&!(y!==undefined&&b.h&&y+.4>=b.h))return true;return false}
 function move(o,dx,dz,r){if(world){o.x+=dx;o.z+=dz;const y=o.y||0;world.push(o,r,y+world.STEP,y+(o===P&&crouch?1.15:1.7));return}if(!hits(o.x+dx,o.z,r,o.y))o.x+=dx;if(!hits(o.x,o.z+dz,r,o.y))o.z+=dz}
+// Ladder whose climb zone contains feet position (x,y,z); `dir` gets the unit vector from the player toward the rungs
+function ladderAt(x,y,z,dir,cur){if(!world||!world.ladders)return null;for(const L of cur?[cur].concat(world.ladders):world.ladders){const[lx,lz,ax,w,y0,y1]=L;
+const t=ax?z-lz:x-lx,n=ax?x-lx:z-lz;if(Math.abs(t)>w/2+.1||Math.abs(n)>.75||y<y0-.9||y>y1+1.35)continue;
+if(dir){dir.x=ax?-Math.sign(n)||1:0;dir.z=ax?0:-Math.sign(n)||1}return L}return null}
 // Floor height under (x,z) reachable from height y (walks up steps, falls down ledges)
 function groundAt(x,z,y){if(world){const g=world.ground(x,z,y+world.STEP);return g>-1e8?g:world.yMin-20}return 0}
 
@@ -625,7 +631,7 @@ renderer.domElement.addEventListener('click',()=>{if(state==='play'&&!buyOpen&&d
 // State
 const P={x:0,z:25,yaw:0,pitch:0,hp:100,speed:0,h:1.6,y:0,vy:0,gnd:true,dead:false};
 let ammo=20,reserve=120,reloading=0,fireCd=0,recoil=0,round=1,kills=0,state='menu',roundTimer=0,hadLock=false,kick=0;
-const keys={};let mouseDown=false;let stepT=0;let mx=innerWidth/2,my=innerHeight/2;let swX=0,swY=0,lyaw=0,lpit=0;
+const keys={};let mouseDown=false;let stepT=0,ladCd=0;const ldir={x:0,z:0};let mx=innerWidth/2,my=innerHeight/2;let swX=0,swY=0,lyaw=0,lpit=0;
 const bots=[],botMeshes=[],allyMeshes=[];
 const ray=new THREE.Raycaster();
 
@@ -812,7 +818,7 @@ const g=await parseGlb(buf);if(isT){tSkinTpl=prepareAgentSkin(g.scene);tSkinStat
 try{localStorage.setItem('strike_'+kind+'_ready','1')}catch(e){}if(assetsReady())markAssetsLocal();refreshLoadUi();feed(label+(fromDisk?' ready (cached)':' ready — saved'))}catch(e){console.warn(label+' failed',e);if(isT)tSkinState='failed';else ctSkinState='failed';if(assetsReady())markAssetsLocal();refreshLoadUi();feed(label+' failed')}})()}
 function loadMap(id){const meta=MAPS[id];if(!meta||mapSt[id]||!window.MapWorld)return;mapSt[id]='loading';refreshLoadUi();
 (async()=>{try{const buf=await loadAssetBuf(['./'+meta.file,meta.file],meta.key,(got,total)=>setLoadMsg('Loading map '+meta.name+'… '+Math.min(99,Math.round(got/total*100))+'%'));
-const w=MapWorld.load(buf);w.meshes.forEach(m=>{m.visible=false;scene.add(m)});mapW[id]=w;
+const w=MapWorld.load(buf);w.ladders=(meta.ladders||[]).map(L=>{L=L.slice();for(const d of[.6,-.6]){const g=w.ground(L[2]?L[0]+d:L[0],L[2]?L[1]:L[1]+d,L[4]+.85);if(g>L[4]-4)L[4]=Math.min(L[4],g)}return L});w.meshes.forEach(m=>{m.visible=false;scene.add(m)});mapW[id]=w;
 w.buildNav(()=>{mapSt[id]='ready';if(mapId===id&&state!=='play')applyMap(id);if(assetsReady())markAssetsLocal();refreshLoadUi();feed(meta.name+' ready')})}
 catch(e){console.warn('map '+id+' failed',e);mapSt[id]='failed';refreshLoadUi();feed(meta.name+' failed to load — using Arena')}})()}
 // Swaps which world the physics, raycasts and rendering use
@@ -907,7 +913,7 @@ const mySp=takeSpot(online?myTeam:'t');
 if(mySp){P.x=mySp[0];P.y=mySp[1];P.z=mySp[2];P.yaw=spawnYaw(online?myTeam:'t',P.x,P.z)}
 else if(online){if(myTeam==='t'){P.x=0;P.z=25;P.yaw=Math.PI}else{P.x=0;P.z=-22;P.yaw=0}}
 else{P.x=0;P.z=25;P.yaw=0}
-P.pitch=0;P.vy=0;P.hp=100;P.dead=false;scoped=false;roundTimer=0;roundKills=0;$('rkills').textContent='0';$('rkills').classList.remove('flash');
+P.pitch=0;P.vy=0;P.lad=null;P.hp=100;P.dead=false;scoped=false;roundTimer=0;roundKills=0;$('rkills').textContent='0';$('rkills').classList.remove('flash');
 if(online)spawnNetOpponent();
 else if(gameMode==='1v1'){spawnBots(1,'ct')}else{spawnBots(4,'t');spawnBots(Math.min(3+round,8),'ct')}
 for(const k in inv){inv[k].ammo=W[k].mag;inv[k].reserve=W[k].res}ammo=inv[cur].ammo;reserve=inv[cur].reserve;reloading=0;freezeT=5;buyT=40;updHud();feed((online?'Online 1v1':gameMode==='1v1'?'1v1':'5v5')+' · '+(world?MAPS[mapId].name:'Arena')+' · Round '+round+' — freeze 5s, buy 40s')}
@@ -1202,15 +1208,33 @@ if(keys.ArrowUp)P.pitch=Math.min(1.5,P.pitch+1.5*dt);if(keys.ArrowDown)P.pitch=M
 }
 let fx=escMenu?0:((keys[K.right]?1:0)-(keys[K.left]?1:0)),fz=escMenu?0:((keys[K.back]?1:0)-(keys[K.fwd]?1:0));
 if(P.dead||freezeT>0){fx=0;fz=0}
-crouch=!escMenu&&!!(keys[K.duck]||(K.duck==='ControlLeft'&&(keys.ControlRight||keys.KeyC)));const walk=!escMenu&&!!(keys[K.walk]||(K.walk==='ShiftLeft'&&keys.ShiftRight)),sp=(crouch?1.7:(walk?2.6:5.2))*W[cur].spd;
+crouch=!escMenu&&!!(keys[K.duck]||(K.duck==='ControlLeft'&&(keys.ControlRight||keys.KeyC)));const walk=!escMenu&&!!(keys[K.walk]||(K.walk==='ShiftLeft'&&keys.ShiftRight));
+// Walking into a ladder while facing it grabs it; leaving its zone (or jumping) lets go
+const lad=!P.dead&&ladCd<=0?ladderAt(P.x,P.y,P.z,ldir,P.lad):null;
+if(!lad)P.lad=null;else if(P.lad)P.lad=lad;else if(fz<0&&-Math.sin(P.yaw)*ldir.x-Math.cos(P.yaw)*ldir.z>.35){P.lad=lad;P.ldx=ldir.x;P.ldz=ldir.z}
+const sp=(crouch?1.7:(walk?2.6:5.2))*W[cur].spd*(P.lad?.4:1);
 if(fx||fz){const l=Math.hypot(fx,fz);fx/=l;fz/=l;
 const c=Math.cos(P.yaw),s=Math.sin(P.yaw);move(P,(fx*c+fz*s)*sp*dt,(-fx*s+fz*c)*sp*dt,.4);P.speed=crouch?.35:(walk?.5:1);if(!walk&&!crouch){stepT-=dt;if(stepT<=0){stepT=.36;snd(.12,.05,500)}}}else P.speed=0;
 recoil=Math.max(0,recoil-dt*(mouseDown?3:9));
 fireCd-=dt;kick=Math.max(0,kick-dt*10);
 if(reloading>0){reloading-=dt;if(reloading<=0){const n=Math.min(W[cur].mag-ammo,reserve);ammo+=n;reserve-=n;reloading=0;updHud()}}
 if(!escMenu&&mouseDown&&!buyOpen&&!menuOpen()&&document.pointerLockElement===cv&&!P.dead&&fireCd<=0&&reloading<=0&&ammo>0&&freezeT<=0&&performance.now()>=menuGrace&&(W[cur].auto||!semiLock)){shoot();if(!W[cur].auto)semiLock=true}
-if(!escMenu&&keys[K.jump]&&P.gnd&&!P.dead&&freezeT<=0){P.vy=7.4;P.gnd=false}
-P.vy-=20*dt;
+if(!escMenu&&keys[K.jump]&&P.lad&&!P.dead){P.lad=null;ladCd=.4;P.vy=3.5;P.gnd=false;move(P,-P.ldx*.35,-P.ldz*.35,.4)}
+else if(!escMenu&&keys[K.jump]&&P.gnd&&!P.dead&&freezeT<=0){P.vy=7.4;P.gnd=false}
+ladCd-=dt;
+// W climbs toward where you look (look down to descend), S the opposite
+if(world&&P.lad){const v=(fz<0?1:fz>0?-1:0)*(P.pitch<-.5?-1:1)*3.4,was=P.y,L=P.lad;P.vy=0;
+// climb on past the top rung up to a ledge/roof just beyond the ladder so you can step off onto it
+const fa=world.ground(L[2]?L[0]+P.ldx*.45:P.x,L[2]?P.z:L[1]+P.ldz*.45,L[5]+1.3),top=fa>L[5]-1.5?Math.max(L[5],fa):L[5];
+P.y=Math.min(P.y+v*dt,Math.max(was,top+.05));
+// rungs are too thin to collide with, so hold the player on their side of the ladder until they reach the top
+if(P.y<top-.1){const off=-.4,hw=L[3]/2;if(L[2]){if((P.x-L[0])*P.ldx>off)P.x=L[0]+off*P.ldx;P.z=Math.max(L[1]-hw,Math.min(L[1]+hw,P.z))}
+else{if((P.z-L[1])*P.ldz>off)P.z=L[1]+off*P.ldz;P.x=Math.max(L[0]-hw,Math.min(L[0]+hw,P.x))}}
+// scaffold ladders end beside a deck rather than under a ledge: let go at the top and drop onto it
+else if(v>0&&top===L[5]&&world.ground(P.x,P.z,P.y)>P.y-1.6){P.lad=null;ladCd=.5}
+const gr=world.ground(P.x,P.z,Math.max(was,P.y)+.05);if(P.y<=gr){P.y=gr;P.gnd=true}else P.gnd=false;
+if(v&&!P.gnd){stepT-=dt;if(stepT<=0){stepT=.3;snd(.1,.05,320)}}}
+else{P.vy-=20*dt;
 if(world){const was=P.y;P.y+=P.vy*dt;
 if(P.vy>0){const c=world.ceiling(P.x,P.z,was+P.h);if(P.y+P.h+.08>c){P.y=Math.max(was,c-P.h-.08);P.vy=0}}
 const gr=world.ground(P.x,P.z,Math.max(was,P.y)+(P.gnd?world.STEP:.05));
@@ -1218,7 +1242,7 @@ const gr=world.ground(P.x,P.z,Math.max(was,P.y)+(P.gnd?world.STEP:.05));
 if(P.y<=gr||(P.gnd&&P.vy<=0&&gr>was-world.STEP)){P.y=gr;P.vy=0;P.gnd=true}else P.gnd=false;
 if(P.y<world.yMin-10){const sp=takeSpot(online?myTeam:'t');if(sp){P.x=sp[0];P.y=sp[1];P.z=sp[2]}P.vy=0}}
 else{P.y+=P.vy*dt;let gr=0;for(const b of boxes)if(b.h&&Math.abs(P.x-b.x)<b.w/2+.3&&Math.abs(P.z-b.z)<b.d/2+.3&&b.h<=P.y+.35&&b.h>gr)gr=b.h;
-if(P.y<=gr){P.y=gr;P.vy=0;P.gnd=true}else P.gnd=false}
+if(P.y<=gr){P.y=gr;P.vy=0;P.gnd=true}else P.gnd=false}}
 P.h+=((crouch?1.05:1.6)-P.h)*Math.min(1,dt*12);camera.position.set(P.x,P.y+P.h+(P.gnd?Math.sin(performance.now()/110)*.025*P.speed:0),P.z);
 camera.rotation.set(P.pitch,P.yaw,0);if(P.dead){const a=online?null:bots.find(b=>b.alive&&b.team==='t');if(a){camera.position.set(a.x,(a.y||0)+1.6,a.z);camera.rotation.set(0,a.g.rotation.y,0)}}
 camera.fov+=((scoped?18:75)-camera.fov)*Math.min(1,dt*15);camera.updateProjectionMatrix();
