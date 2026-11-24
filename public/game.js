@@ -1103,6 +1103,8 @@ function hideViewWeapon(){
   if(typeof viewHandsRoot!=='undefined'&&viewHandsRoot)viewHandsRoot.visible=false;
 }
 function playerDown(){P.hp=0;P.dead=true;P.diedAt=performance.now();mouseDown=false;scoped=false;hideViewWeapon();
+// As in CS, dying drops your loadout: next round starts with the default pistol only
+armor=0;nades={he:0,flash:0,smoke:0};inv={glock:{ammo:20,reserve:120}};setWeapon('glock');
 feed(online?'You died':'You died — spectating teammates');
 if(online&&window.Netplay){Netplay.send({t:'killed',rd:round});checkOnlineRound()}}
 // Host decides rounds. Called on every death (not only from the render loop, which browsers pause in hidden tabs).
