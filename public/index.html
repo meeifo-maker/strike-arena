@@ -8,6 +8,8 @@ html,body{margin:0;height:100%;background:#0b0d10;overflow:hidden;font-family:sy
 canvas{display:block;position:fixed;inset:0;z-index:0;width:100%;height:100%;filter:contrast(1.1) saturate(1.12);pointer-events:none}
 body.play canvas{pointer-events:auto}
 body.play,body.play *{cursor:none!important}
+#relock{position:fixed;inset:0;z-index:35;display:none;align-items:center;justify-content:center;cursor:pointer;background:rgba(5,7,10,.25)}
+#relock b{padding:12px 22px;border-radius:6px;background:rgba(10,12,16,.85);border:1px solid #ffb02e;font-size:18px;letter-spacing:1px}
 #cross{position:fixed;left:50%;top:50%;width:0;height:0;pointer-events:none}
 #cross i{position:absolute;background:#7CFF6B;box-shadow:0 0 2px #000}
 #cross .h{width:10px;height:2px;top:-1px}#cross .v{width:2px;height:10px;left:-1px}
@@ -107,6 +109,7 @@ body.play,body.play *{cursor:none!important}
     </div>
   </div>
 </div>
+<div id="relock"><b>Click to resume</b></div>
 <div id="ov" style="display:none"><h1>STRIKE: ARENA</h1>
 <p>You are a <b>Terrorist</b> (orange) with 4 bot teammates. Eliminate every <span style="color:#6aa8ff;font-weight:700">Counter-Terrorist</span> (blue) to win the round. Up to 8 rounds — first to 5 wins.</p>
 <p><b>WASD</b> move · <b>Mouse</b> aim (or <b>arrow keys</b>) · <b>Click</b> fire · <b>R</b> reload · <b>Shift</b> walk (more accurate)</p>
@@ -121,4 +124,4 @@ body.play,body.play *{cursor:none!important}
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="netplay.js?v=peer7"></script>
 <script src="mapworld.js?v=map1"></script>
-<script src="game.js?v=map4"></script></body></html>
+<script src="game.js?v=map5"></script></body></html>
