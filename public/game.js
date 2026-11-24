@@ -198,11 +198,12 @@ return{at:[x,y,fz+.018],up:[0,1,s]}}
 const _ax=new THREE.Vector3(),_ay=new THREE.Vector3(),_az=new THREE.Vector3(),_am=new THREE.Matrix4();
 // per-weapon overrides, merged per hand over the category pose
 const ARM_WPN={
-// mag:0 — manual hold; magGrip sits too low under the AK magwell
-ak:{L:{mag:0,at:[0,.045,-.035],up:[0,.9,.35],p:[.2,.98,0]}},
+// mag:0 — manual hold under the wooden handguard, arm from the lower left, fingers round the far side
+ak:{L:{mag:0,at:[0,.04,-.11],up:[0,0,-1],p:[-.4,.92,0]}},
 m4:{L:{at:[0,-.02,0],up:[0,1,.26],p:[1,0,0]}},
 awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]}},
-mp9:{L:null,R:{at:[0,-.005,0],f:[-.1,.4,-.9],p:[-1,0,0]}}};
+// right hand on the magazine grip, left on the front vertical grip
+mp9:{R:{at:[0,-.045,-.05],f:[-.1,.4,-.9],p:[-1,0,0]},L:{at:[0,-.01,-.168],f:[.35,.35,-.87],p:[1,0,.4]}}};
 function poseArms(cat){if(!viewGlove)return;const u=viewGlove.userData,key=cat+':'+cur;if(u.cat===key)return;u.cat=key;
 const B=ARM_POSE[cat]||ARM_POSE.rifle,X=ARM_WPN[cur]||{},P={};for(const s of ['L','R'])if(X[s]!==null&&(B[s]||X[s]))P[s]=Object.assign({},B[s],X[s]);
 for(const s of ['L','R']){const pv=u.arms[s],c=P[s];if(!pv)continue;pv.visible=!!c;if(!c)continue;
