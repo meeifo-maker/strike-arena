@@ -683,27 +683,52 @@ const wq=alignBoneAxis._wq||(alignBoneAxis._wq=new THREE.Quaternion()),pq=alignB
 axis.copy(child.position).normalize();bone.updateMatrixWorld(true);bone.getWorldPosition(o);bone.getWorldQuaternion(wq);
 cur.copy(axis).applyQuaternion(wq).normalize();want.copy(worldTarget).sub(o);if(want.lengthSq()<1e-10)return;want.normalize();
 dq.setFromUnitVectors(cur,want);wq.premultiply(dq);bone.parent.getWorldQuaternion(pq);bone.quaternion.copy(pq.invert().multiply(wq))}
-function poseArmsToGun(bn,rest,gunHold){if(!gunHold||!rest)return;
-['arm_upper_l','arm_upper_r','arm_lower_l','arm_lower_r'].forEach(k=>{if(bn[k]&&rest[k]){bn[k].quaternion.copy(rest[k].q);bn[k].scale.copy(rest[k].s)}});
-gunHold.updateMatrixWorld(true);
-const gR=poseArmsToGun._gR||(poseArmsToGun._gR=new THREE.Vector3()),gL=poseArmsToGun._gL||(poseArmsToGun._gL=new THREE.Vector3());
-const elR=poseArmsToGun._elR||(poseArmsToGun._elR=new THREE.Vector3()),sh=poseArmsToGun._sh||(poseArmsToGun._sh=new THREE.Vector3());
+// Both CS2 rigs share bone names but not rest orientations or proportions, so everything the arm solve needs
+// (segment lengths, which way each palm faces) is measured once from the bot's own rest pose.
+function measureArms(u){const m=u.model,bn=u.bones,A={},rigQ=new THREE.Quaternion(),q=new THREE.Quaternion();
+m.updateMatrixWorld(true);u.rig.getWorldQuaternion(rigQ);
+for(const s of ['l','r']){const up=bn['arm_upper_'+s],lo=bn['arm_lower_'+s],hd=findBone(m,'hand_'+s);if(!up||!lo||!hd)continue;
+const ps=up.getWorldPosition(new THREE.Vector3()),pe=lo.getWorldPosition(new THREE.Vector3()),ph=hd.getWorldPosition(new THREE.Vector3());
+// A-pose palms face the thighs, i.e. inward toward the centre line; kept in forearm space so it follows the arm
+lo.getWorldQuaternion(q);const palm=new THREE.Vector3(s==='r'?-1:1,0,0).applyQuaternion(rigQ).applyQuaternion(q.invert());
+const fingers=[];for(const f of ['index','middle','ring','pinky'])for(const k of [0,1,2]){const fb=findBone(m,'finger_'+f+'_'+k+'_'+s);if(fb)fingers.push({b:fb,q:fb.quaternion.clone()})}
+A[s]={up,lo,l1:Math.max(ps.distanceTo(pe),.05),l2:Math.max(pe.distanceTo(ph),.05),palm,fingers}}
+return A}
+const _pa=[...Array(16)].map(()=>new THREE.Vector3()),_pq=[...Array(4)].map(()=>new THREE.Quaternion());
+function rotateBoneWorld(bone,axisW,ang){bone.getWorldQuaternion(_pq[0]);_pq[1].setFromAxisAngle(axisW,ang);_pq[0].premultiply(_pq[1]);
+bone.parent.getWorldQuaternion(_pq[2]);bone.quaternion.copy(_pq[2].invert().multiply(_pq[0]));bone.updateMatrixWorld(true)}
 // Wrist targets in hold space (unscaled, gun centred, 0.75m long, muzzle −Z); the hand mesh extends ~10cm past
-// the wrist, so these sit behind/below the pistol grip and handguard. Not the gun mesh's own space — the loaded
+// the wrist, so these sit behind the pistol grip and handguard. Not the gun mesh's own space — the loaded
 // weapon root carries a large import scale.
-gR.set(0,.01,.19).applyMatrix4(gunHold.matrixWorld);gL.set(0,0,-.06).applyMatrix4(gunHold.matrixWorld);
-if(bn.arm_upper_r&&bn.arm_lower_r){bn.arm_upper_r.updateMatrixWorld(true);bn.arm_upper_r.getWorldPosition(sh);bn.arm_lower_r.getWorldPosition(elR);
-const l1=Math.max(sh.distanceTo(elR),.05),l2=l1*.92,reach=Math.min(sh.distanceTo(gR),(l1+l2)*.98);
-const dir=poseArmsToGun._dir||(poseArmsToGun._dir=new THREE.Vector3()),pv=poseArmsToGun._pv||(poseArmsToGun._pv=new THREE.Vector3());
-dir.copy(gR).sub(sh).normalize();const a=(l1*l1-l2*l2+reach*reach)/(2*Math.max(reach,.01)),h=Math.sqrt(Math.max(0,l1*l1-a*a));
-pv.set(0,-1,0).addScaledVector(dir,-dir.y);if(pv.lengthSq()<1e-6)pv.set(1,0,0);else pv.normalize();
-elR.copy(sh).addScaledVector(dir,a).addScaledVector(pv,h);alignBoneAxis(bn.arm_upper_r,elR);bn.arm_lower_r.updateMatrixWorld(true);alignBoneAxis(bn.arm_lower_r,gR)}
-if(bn.arm_upper_l&&bn.arm_lower_l){bn.arm_upper_l.updateMatrixWorld(true);bn.arm_upper_l.getWorldPosition(sh);bn.arm_lower_l.getWorldPosition(elR);
-const l1=Math.max(sh.distanceTo(elR),.05),l2=l1*.92,reach=Math.min(sh.distanceTo(gL),(l1+l2)*.98);
-const dir=poseArmsToGun._dir||(poseArmsToGun._dir=new THREE.Vector3()),pv=poseArmsToGun._pv||(poseArmsToGun._pv=new THREE.Vector3());
-dir.copy(gL).sub(sh).normalize();const a=(l1*l1-l2*l2+reach*reach)/(2*Math.max(reach,.01)),h=Math.sqrt(Math.max(0,l1*l1-a*a));
-pv.set(0,-1,0).addScaledVector(dir,-dir.y);if(pv.lengthSq()<1e-6)pv.set(-1,0,0);else pv.normalize();
-elR.copy(sh).addScaledVector(dir,a).addScaledVector(pv,h);alignBoneAxis(bn.arm_upper_l,elR);bn.arm_lower_l.updateMatrixWorld(true);alignBoneAxis(bn.arm_lower_l,gL)}}
+const GRIP={r:[0,.01,.19],l:[0,0,-.06]},FINGER_CURL=.55;
+function poseArmsToGun(u,gunHold){const rest=u.restQ,bn=u.bones;if(!gunHold||!rest)return;
+['arm_upper_l','arm_upper_r','arm_lower_l','arm_lower_r'].forEach(k=>{if(bn[k]&&rest[k]){bn[k].quaternion.copy(rest[k].q);bn[k].scale.copy(rest[k].s)}});
+const A=u.arms||(u.arms=measureArms(u));
+for(const s in A)for(const f of A[s].fingers)f.b.quaternion.copy(f.q);
+gunHold.updateMatrixWorld(true);u.rig.getWorldQuaternion(_pq[3]);
+const [T,S,E,dir,pole,right,upV,cur,want,back]=_pa;
+right.set(1,0,0).applyQuaternion(_pq[3]);upV.set(0,1,0).applyQuaternion(_pq[3]);back.set(0,0,1).applyQuaternion(_pq[3]);
+for(const s of ['r','l']){const a=A[s];if(!a)continue;const side=s==='r'?1:-1;
+T.fromArray(GRIP[s]).applyMatrix4(gunHold.matrixWorld);a.up.updateMatrixWorld(true);a.up.getWorldPosition(S);
+dir.copy(T).sub(S);const len=dir.length()||1;dir.divideScalar(len);
+const reach=Math.min(Math.max(len,Math.abs(a.l1-a.l2)+.02),(a.l1+a.l2)*.97);
+// Elbows hang down and out to the side, slightly back — never across the chest
+pole.copy(upV).negate().addScaledVector(right,side*.7).addScaledVector(back,.3);
+pole.addScaledVector(dir,-pole.dot(dir));if(pole.lengthSq()<1e-6)pole.copy(right).multiplyScalar(side);pole.normalize();
+const along=(a.l1*a.l1-a.l2*a.l2+reach*reach)/(2*reach),h=Math.sqrt(Math.max(0,a.l1*a.l1-along*along));
+E.copy(S).addScaledVector(dir,along).addScaledVector(pole,h);T.copy(S).addScaledVector(dir,reach);
+alignBoneAxis(a.up,E);a.lo.updateMatrixWorld(true);alignBoneAxis(a.lo,T);a.lo.updateMatrixWorld(true);
+// Roll the forearm about its own axis: right palm faces the pistol grip (inward), left palm cups the handguard (up)
+const fore=_pa[10].copy(T).sub(a.lo.getWorldPosition(_pa[11])).normalize();
+a.lo.getWorldQuaternion(_pq[3]);cur.copy(a.palm).applyQuaternion(_pq[3]);
+if(s==='r')want.copy(right).negate();else want.copy(upV).addScaledVector(right,.4);
+cur.addScaledVector(fore,-cur.dot(fore));want.addScaledVector(fore,-want.dot(fore));
+if(cur.lengthSq()>1e-6&&want.lengthSq()>1e-6){cur.normalize();want.normalize();rotateBoneWorld(a.lo,fore,Math.atan2(_pa[11].crossVectors(cur,want).dot(fore),cur.dot(want)))}
+// Curl the fingers toward the palm so the hands close on the gun
+a.lo.getWorldQuaternion(_pq[3]);const palmW=_pa[12].copy(a.palm).applyQuaternion(_pq[3]);
+for(const f of a.fingers){const fb=f.b,ch=fb.children.find(c=>c.isBone);fb.updateMatrixWorld(true);
+const p0=fb.getWorldPosition(_pa[13]),fd=_pa[14];if(ch)fd.copy(ch.getWorldPosition(_pa[15])).sub(p0);else fd.copy(p0).sub(fb.parent.getWorldPosition(_pa[15]));
+const ax=_pa[15].crossVectors(fd.normalize(),palmW);if(ax.lengthSq()<1e-6)continue;rotateBoneWorld(fb,ax.normalize(),FINGER_CURL)}}}
 function buildSkinnedBot(team){const tpl=team==='t'?tSkinTpl:ctSkinTpl;if(!tpl)throw new Error('no '+team+' skin');
 const g=new THREE.Group(),rig=new THREE.Group();g.rotation.order='YXZ';g.add(rig);
 const model=cloneAgentModel(tpl);model.rotation.y=Math.PI;rig.add(model);
@@ -807,7 +832,7 @@ return{g,rig,body,head,limbs,legs,shins,fl}}
 function animBot(b,w,dt){const u=b.g.userData,t=performance.now()/1000,mv=w!==0;if(u.fl)u.fl.visible=performance.now()<(b.fu||0);
 if(u.skinned){const bn=u.bones||{};
 if(!u.restQ){u.restQ={};['clavicle_l','clavicle_r','arm_upper_l','arm_upper_r','arm_lower_l','arm_lower_r'].forEach(k=>{if(bn[k])u.restQ[k]={q:bn[k].quaternion.clone(),s:bn[k].scale.clone()}})}
-if(u.gun)poseArmsToGun(bn,u.restQ,u.gun);
+if(u.gun)poseArmsToGun(u,u.gun);
 u.rig.position.y=mv?Math.abs(Math.sin(t*9.2))*.03:Math.sin(t*1.6+b.sd)*.004;return}
 const L=u.legs,S=u.shins;L[0].rotation.x=w;L[1].rotation.x=-w;S[0].rotation.x=-Math.max(0,-w)*1.2-.04;S[1].rotation.x=-Math.max(0,w)*1.2-.04;
 u.rig.position.y=mv?Math.abs(Math.sin(t*5.9+b.sd*3))*.025:Math.sin(t*1.6+b.sd)*.004;u.rig.rotation.z=mv?Math.sin(t*5.9+b.sd*3)*.02:0}
@@ -824,7 +849,7 @@ function spawnNetOpponent(){
   netBot.net=true;netBot.alive=true;netBot.hp=100;netBot.crouch=false;
   bots.push(netBot);
   // Ensure third-person gun is mounted once weapon assets are ready
-  if(netBot.g.userData){const u=netBot.g.userData;if((!u.gun||!u.gun.parent)&&u.rig){const mounted=mountBotGun(u.rig,u.model,theirTeam,u.bones||{});u.gun=mounted.rg;u.fl=mounted.fl;u.restQ=null}}
+  if(netBot.g.userData){const u=netBot.g.userData;if((!u.gun||!u.gun.parent)&&u.rig){const mounted=mountBotGun(u.rig,u.model,theirTeam,u.bones||{});u.gun=mounted.rg;u.fl=mounted.fl}}
 }
 function startRound(){clearBots();netBot=null;if(online&&window.Netplay)Netplay.remote=null;
 for(let i=nl.length-1;i>=0;i--)if(nl[i].net){scene.remove(nl[i].m);nl.splice(i,1)}
