@@ -482,11 +482,16 @@ const mm1=$('mm-1v1');if(mm1)mm1.onclick=()=>goPlayBriefing('1v1');
 $('mm-ctrl').onclick=()=>{mouseDown=false;semiLock=false;renderSet();$('set').style.display='block'};
 $('mm-model').onclick=()=>{mouseDown=false;semiLock=false;renderMdl();$('mdl').style.display='block'};
 
-function showLobby(asHost){
+// mode: true = host, false = joining from an invite link, 'code' = type in a friend's room code
+function showLobby(mode){
   if(!$('lobby')||!window.Netplay){feed('Online play unavailable');return}
+  const asHost=mode===true,byCode=mode==='code';
   $('mm').style.display='none';$('ov').style.display='none';$('lobby').style.display='flex';
-  $('lb-start').style.display='none';$('lb-link').textContent='';
-  $('lb-role').textContent=asHost?'You are hosting — send this link to a friend':'Joining friend…';
+  $('lb-start').style.display='none';$('lb-link').textContent='';$('lb-status').textContent='';
+  $('lb-code').style.display='none';$('lb-code').textContent='';$('lb-join').style.display=byCode?'flex':'none';$('lb-copy').style.display=asHost?'':'none';
+  if($('lb-retry'))$('lb-retry').style.display='none';
+  $('lb-role').textContent=asHost?'Creating private room…':byCode?"Enter your friend's room code":'Joining friend…';
+  if(byCode){Netplay.leave();$('lb-input').value='';setTimeout(()=>$('lb-input').focus(),0)}
   Netplay.onStatus=(s,d)=>{$('lb-status').textContent=d||s};
   Netplay.onConnected=()=>{
     peerReady=false;netReady=false;peerBuildBad=false;
@@ -508,13 +513,15 @@ function showLobby(asHost){
     Netplay.createRoom().then(()=>{
       const url=Netplay.inviteUrl();
       $('lb-link').textContent=url;
+      $('lb-code').textContent=Netplay.room;$('lb-code').style.display='block';
+      $('lb-role').textContent='Give your friend this code (Join by code) or send the link';
       $('lb-status').textContent='Waiting for friend… keep this tab open';
     }).catch((e)=>{$('lb-status').textContent='Host failed: '+(e&&e.message||'retry')});
   }
 }
 // netReady: we told the peer our models are loaded · peerReady: the peer told us theirs are
 // Both players must run the same build — an unrefreshed tab silently breaks round/hit sync
-const BUILD='map1';let peerBuildBad=false;
+const BUILD='code1';let peerBuildBad=false;
 function sendReady(){if(window.Netplay&&Netplay.connected&&assetsReady()&&!netReady)netReady=Netplay.send({t:'ready',build:BUILD})}
 function updLobby(){
   if(!$('lobby')||$('lobby').style.display!=='flex'||!window.Netplay||!Netplay.connected)return;
@@ -597,6 +604,15 @@ function onNetMessage(msg){
 }
 const mmOnline=$('mm-online');
 if(mmOnline)mmOnline.onclick=()=>showLobby(true);
+if($('mm-join'))$('mm-join').onclick=()=>showLobby('code');
+function joinByCode(){const c=Netplay.cleanCode($('lb-input').value);$('lb-input').value=c;
+  if(c.length!==Netplay.CODE_LEN){$('lb-status').textContent='Codes are '+Netplay.CODE_LEN+' letters';return}
+  $('lb-role').textContent='Joining room '+c+'…';$('lb-status').textContent='Connecting to host…';
+  Netplay.joinCode(c).then(()=>{$('lb-join').style.display='none';$('lb-role').textContent='In room '+c;sendReady();updLobby()})
+  .catch(()=>{Netplay.leave(false);$('lb-role').textContent="Enter your friend's room code";$('lb-input').focus();$('lb-input').select()})}
+if($('lb-go'))$('lb-go').onclick=joinByCode;
+if($('lb-input')){$('lb-input').addEventListener('focus',e=>e.target.select());$('lb-input').addEventListener('input',e=>{const t=e.target,c=Netplay.cleanCode(t.value);if(t.value!==c)t.value=c});
+  $('lb-input').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')joinByCode();else if(e.key==='Escape')showMainMenu()})}
 if($('lb-back'))$('lb-back').onclick=()=>showMainMenu();
 if($('lb-copy'))$('lb-copy').onclick=()=>{const t=Netplay.inviteUrl();if(!t)return;navigator.clipboard&&navigator.clipboard.writeText(t).then(()=>$('lb-status').textContent='Link copied!').catch(()=>{$('lb-status').textContent=t})};
 if($('lb-start'))$('lb-start').onclick=()=>beginOnlineMatch();
