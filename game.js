@@ -177,10 +177,13 @@ let cz=0,n=0;for(const i of keep)if(pos.getY(i)>ARM_KN){cz+=pos.getZ(i);n++}cz/=
 // drop the thumb: it can't bend, and in every grip it pokes through the gun
 const sg=s==='R'?1:-1,thumb=i=>{const y=pos.getY(i);return y>.08&&y<.34&&(pos.getZ(i)-cz)*sg>.13},hand=[];
 for(let t=0;t<keep.length;t+=3)if(!thumb(keep[t])&&!thumb(keep[t+1])&&!thumb(keep[t+2]))hand.push(keep[t],keep[t+1],keep[t+2]);
-const g=geo.clone();curlFingers(g);g.setIndex(hand);g.translate(-(ARM_FX-ARM_CR),-ARM_KN,-cz);
+const g=geo.clone();stretchSleeve(g);curlFingers(g);g.setIndex(hand);g.translate(-(ARM_FX-ARM_CR),-ARM_KN,-cz);
 const mesh=new THREE.Mesh(g,src.material);mesh.frustumCulled=false;mesh.renderOrder=6;mesh.scale.setScalar(ARM_SCALE);
 const pivot=new THREE.Group();pivot.add(mesh);root.add(pivot);root.userData.arms[s]=pivot}
 return root}
+// The source forearm is cut off ~23cm behind the knuckles, which ends mid-screen; lengthen it so the sleeve runs off the edge
+const ARM_SLEEVE=-.1,ARM_STRETCH=3.2;
+function stretchSleeve(g){const p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i);if(y<ARM_SLEEVE)p.setY(i,ARM_SLEEVE+(y-ARM_SLEEVE)*ARM_STRETCH)}g.computeBoundingSphere()}
 function curlFingers(g){const p=g.attributes.position,nm=g.attributes.normal,tg=g.attributes.tangent;
 for(let i=0;i<p.count;i++){const y0=p.getY(i),d=y0-ARM_KN;if(d<=0)continue;const t=d/ARM_CR,c=Math.cos(t),s=Math.sin(t),r=ARM_CR+p.getX(i)-ARM_FX;
 p.setXY(i,ARM_FX-ARM_CR+r*c,ARM_KN+r*s);for(const a of [nm,tg])if(a){const x=a.getX(i),y=a.getY(i);a.setXY(i,x*c-y*s,x*s+y*c)}}}
@@ -636,7 +639,7 @@ renderer.domElement.addEventListener('click',()=>{if(state==='play'&&!buyOpen&&d
 // State
 const P={x:0,z:25,yaw:0,pitch:0,hp:100,speed:0,h:1.6,y:0,vy:0,gnd:true,dead:false};
 let ammo=20,reserve=120,reloading=0,fireCd=0,recoil=0,round=1,kills=0,state='menu',roundTimer=0,hadLock=false,kick=0,vkick=0;
-const keys={};let mouseDown=false;let stepT=0,ladCd=0;const ldir={x:0,z:0};let mx=innerWidth/2,my=innerHeight/2;let swX=0,swY=0,lyaw=0,lpit=0;
+const keys={};let mouseDown=false;let stepT=0,ladCd=0;const ldir={x:0,z:0};let mx=innerWidth/2,my=innerHeight/2;let swX=0,swY=0,lyaw=0,lpit=0,bobT=0,bobA=0;
 const bots=[],botMeshes=[],allyMeshes=[];
 const ray=new THREE.Raycaster();
 
@@ -1267,8 +1270,10 @@ if(viewHandsRoot)viewHandsRoot.visible=true;
 const rl=reloading>0?Math.sin(Math.min(1,1-reloading/W[cur].rl)*Math.PI):0;
 const cat=viewCat(cur),vp=VIEW_POSE[cat]||VIEW_POSE.rifle;const gy=gun.userData.loaded?vp.gy:-.2;
 lyaw=P.yaw;lpit=P.pitch;swY=0;swX=0;
-gun.position.set(vp.gx,gy-rl*.05+vkick*.012,vp.gz+kick*.005+vkick*.035);
-gun.rotation.set((vp.tip||0)+kick*.006+rl*.12+vkick*.07,0,0);
+const moving=P.speed>0&&(P.gnd||!world)&&!P.lad;bobA+=((moving?P.speed:0)-bobA)*Math.min(1,dt*8);if(moving)bobT+=dt*(5+4*P.speed);
+const bA=bobA*(scoped?.2:1),bx=Math.sin(bobT)*.011*bA,by=-Math.abs(Math.cos(bobT))*.013*bA;
+gun.position.set(vp.gx+bx,gy+by-rl*.05+vkick*.012,vp.gz+kick*.005+vkick*.035);
+gun.rotation.set((vp.tip||0)+kick*.006+rl*.12+vkick*.07+by*.6,0,bx*1.4);
 const wantKey=handPlateKey(cat);
 if(viewGlove&&viewGlove.parent===gun){if(gun.userData.viewCat!==cat)mountViewHands()}
 else if(!viewHandPlate||viewHandPlate.userData.handKey!==wantKey||gun.userData.viewCat!==cat||gloveState==='ready')mountViewHands();
