@@ -80,7 +80,9 @@ let mapId=(()=>{try{const m=localStorage.getItem('strike_map');return m==='arena
 const mapW={},mapSt={};let world=null;
 function mapReady(id){id=id||mapId;return id==='arena'||mapSt[id]==='ready'||mapSt[id]==='failed'}
 function hits(x,z,r,y){if(world)return world.blocked(x,z,r,(y||0)+world.STEP,(y||0)+1.7);for(const b of boxes)if(Math.abs(x-b.x)<b.w/2+r&&Math.abs(z-b.z)<b.d/2+r&&!(y!==undefined&&b.h&&y+.4>=b.h))return true;return false}
-function move(o,dx,dz,r){if(world){o.x+=dx;o.z+=dz;const y=o.y||0;world.push(o,r,y+world.STEP,y+(o===P&&crouch?1.15:1.7));return}if(!hits(o.x+dx,o.z,r,o.y))o.x+=dx;if(!hits(o.x,o.z+dz,r,o.y))o.z+=dz}
+function move(o,dx,dz,r){if(world){const px=o.x,pz=o.z,y=o.y||0;o.x+=dx;o.z+=dz;world.push(o,r,y+world.STEP,y+(o===P&&crouch?1.15:1.7));
+// Never step over a spot with no floor at all (inside a wall/prop shell or off the map): you'd fall out of the world
+if(world.ground(o.x,o.z,y+world.STEP)<-1e8&&world.ground(px,pz,y+world.STEP)>-1e8){o.x=px;o.z=pz}return}if(!hits(o.x+dx,o.z,r,o.y))o.x+=dx;if(!hits(o.x,o.z+dz,r,o.y))o.z+=dz}
 // Ladder whose climb zone contains feet position (x,y,z); `dir` gets the unit vector from the player toward the rungs
 function ladderAt(x,y,z,dir,cur){if(!world||!world.ladders)return null;for(const L of cur?[cur].concat(world.ladders):world.ladders){const[lx,lz,ax,w,y0,y1]=L;
 const t=ax?z-lz:x-lx,n=ax?x-lx:z-lz;if(Math.abs(t)>w/2+.1||Math.abs(n)>.75||y<y0-.9||y>y1+1.35)continue;
@@ -913,7 +915,7 @@ const mySp=takeSpot(online?myTeam:'t');
 if(mySp){P.x=mySp[0];P.y=mySp[1];P.z=mySp[2];P.yaw=spawnYaw(online?myTeam:'t',P.x,P.z)}
 else if(online){if(myTeam==='t'){P.x=0;P.z=25;P.yaw=Math.PI}else{P.x=0;P.z=-22;P.yaw=0}}
 else{P.x=0;P.z=25;P.yaw=0}
-P.pitch=0;P.vy=0;P.lad=null;P.hp=100;P.dead=false;scoped=false;roundTimer=0;roundKills=0;$('rkills').textContent='0';$('rkills').classList.remove('flash');
+P.pitch=0;P.vy=0;P.lad=null;P.safe=null;P.hp=100;P.dead=false;scoped=false;roundTimer=0;roundKills=0;$('rkills').textContent='0';$('rkills').classList.remove('flash');
 if(online)spawnNetOpponent();
 else if(gameMode==='1v1'){spawnBots(1,'ct')}else{spawnBots(4,'t');spawnBots(Math.min(3+round,8),'ct')}
 for(const k in inv){inv[k].ammo=W[k].mag;inv[k].reserve=W[k].res}ammo=inv[cur].ammo;reserve=inv[cur].reserve;reloading=0;freezeT=5;buyT=40;updHud();feed((online?'Online 1v1':gameMode==='1v1'?'1v1':'5v5')+' · '+(world?MAPS[mapId].name:'Arena')+' · Round '+round+' — freeze 5s, buy 40s')}
@@ -980,6 +982,7 @@ try{ac=ac||new (window.AudioContext||window.webkitAudioContext)()}catch(err){}
 try{const p=cv.requestPointerLock&&cv.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}catch(err){}
 try{if(prev==='menu'){if(online)showMainMenu();else resetGame()}else if(prev==='dead')afterLoss();else state='play'}catch(err){console.error(err);state='play';feed('Failed to start — try again')}
 });
+$('relock').addEventListener('click',e=>{e.stopPropagation();menuGrace=performance.now()+250;try{const p=cv.requestPointerLock&&cv.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}catch(err){}});
 document.addEventListener('pointerlockchange',()=>{
 if(document.pointerLockElement===cv)hadLock=true;
 else if(hadLock&&state==='play'&&!escMenu&&!buyOpen&&$('set').style.display!=='block'&&$('mdl').style.display!=='block'&&performance.now()>=menuGrace)showEscMenu();
@@ -1201,10 +1204,11 @@ const clock=new THREE.Clock();
 function los(from,to){const d=tmp.copy(to).sub(from);const L=d.length();d.normalize();ray.set(from,d);ray.far=L;return ray.intersectObjects(boxMeshes.concat(smokeMeshes),false).length===0}
 const bp=new THREE.Vector3(),pp=new THREE.Vector3();
 function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.05);document.body.classList.toggle('play',state==='play'&&!escMenu&&!buyOpen&&document.pointerLockElement===renderer.domElement&&$('set').style.display!=='block');
+// Browsers refuse to re-lock right after Esc or without a click, so a menu can close with the mouse free: ask for a click
+{const need=state==='play'&&!menuOpen()&&document.pointerLockElement!==cv;const rl=$('relock');if(rl&&(rl.style.display==='flex')!==need)rl.style.display=need?'flex':'none';if(need){mouseDown=false;semiLock=false}}
 if(state==='play'){
 // Local input blocked while ESC menu is open — match timers/bots/net keep running
 if(!escMenu){
-if(document.pointerLockElement!==cv&&!buyOpen){const f=v=>Math.abs(v)<.15?0:(v-Math.sign(v)*.15)/.85,k=sens*dt*(scoped?.3:1);P.yaw-=f((mx/innerWidth-.5)*2)*2.8*k;P.pitch=Math.max(-1.5,Math.min(1.5,P.pitch-f((my/innerHeight-.5)*2)*1.8*k))}
 if(keys.ArrowLeft)P.yaw+=2*dt;if(keys.ArrowRight)P.yaw-=2*dt;
 if(keys.ArrowUp)P.pitch=Math.min(1.5,P.pitch+1.5*dt);if(keys.ArrowDown)P.pitch=Math.max(-1.5,P.pitch-1.5*dt);
 }
@@ -1239,10 +1243,13 @@ if(v&&!P.gnd){stepT-=dt;if(stepT<=0){stepT=.3;snd(.1,.05,320)}}}
 else{P.vy-=20*dt;
 if(world){const was=P.y;P.y+=P.vy*dt;
 if(P.vy>0){const c=world.ceiling(P.x,P.z,was+P.h);if(P.y+P.h+.08>c){P.y=Math.max(was,c-P.h-.08);P.vy=0}}
-const gr=world.ground(P.x,P.z,Math.max(was,P.y)+(P.gnd?world.STEP:.05));
+// Walls only block above STEP, so airborne players must also land on tops within STEP or they slip inside boxes
+const gr=world.ground(P.x,P.z,Math.max(was,P.y)+world.STEP);
 // grounded players follow stairs and slopes down instead of hopping off each step
 if(P.y<=gr||(P.gnd&&P.vy<=0&&gr>was-world.STEP)){P.y=gr;P.vy=0;P.gnd=true}else P.gnd=false;
-if(P.y<world.yMin-10){const sp=takeSpot(online?myTeam:'t');if(sp){P.x=sp[0];P.y=sp[1];P.z=sp[2]}P.vy=0}}
+// Nothing below at all means we got inside geometry or off the map: go back to the last place we stood
+if(gr<-1e8||P.y<world.yMin-10){if(P.safe){P.x=P.safe.x;P.y=P.safe.y;P.z=P.safe.z;P.gnd=true}else{const sp=takeSpot(online?myTeam:'t');if(sp){P.x=sp[0];P.y=sp[1];P.z=sp[2]}}P.vy=0}
+else if(P.gnd)P.safe={x:P.x,y:P.y,z:P.z}}
 else{P.y+=P.vy*dt;let gr=0;for(const b of boxes)if(b.h&&Math.abs(P.x-b.x)<b.w/2+.3&&Math.abs(P.z-b.z)<b.d/2+.3&&b.h<=P.y+.35&&b.h>gr)gr=b.h;
 if(P.y<=gr){P.y=gr;P.vy=0;P.gnd=true}else P.gnd=false}}
 P.h+=((crouch?1.05:1.6)-P.h)*Math.min(1,dt*12);camera.position.set(P.x,P.y+P.h+(P.gnd?Math.sin(performance.now()/110)*.025*P.speed:0),P.z);
