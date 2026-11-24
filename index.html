@@ -67,9 +67,15 @@ body.play,body.play *{cursor:none!important}
 #lobby h2{margin:0 0 8px;color:var(--accent);letter-spacing:2px}
 #lobby p{margin:8px 0;line-height:1.45;opacity:.9}
 #lobby .link{word-break:break-all;font-size:13px;background:#151920;border:1px solid #444;border-radius:6px;padding:10px;margin:12px 0;user-select:all}
+#lobby .link:empty{display:none}
 #lobby .row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
 #lobby button{padding:10px 16px;font-size:14px;font-weight:700;border-radius:6px;border:1px solid #555;background:#2a2e36;color:#f2f2f2;cursor:pointer}
 #lobby #lb-copy,#lobby #lb-start{background:var(--accent);color:#111;border-color:var(--accent)}
+#lobby .code{display:none;margin:14px auto 6px;font-size:44px;font-weight:800;letter-spacing:12px;padding-left:12px;color:var(--accent);font-family:Consolas,monospace;user-select:all}
+#lobby .join{display:none;gap:8px;justify-content:center;margin:14px 0 6px}
+#lobby .join input{width:190px;padding:10px 12px;font-size:28px;font-weight:800;letter-spacing:8px;text-align:center;text-transform:uppercase;font-family:Consolas,monospace;background:#151920;color:#f2f2f2;border:1px solid #666;border-radius:6px;outline:none}
+#lobby .join input:focus{border-color:var(--accent)}
+#lobby #lb-go{background:var(--accent);color:#111;border-color:var(--accent);font-size:16px}
 #lobby .st{min-height:1.4em;color:#ffb02e;font-weight:700}
 </style></head><body>
 <div id="cross"><i class="h l"></i><i class="h r"></i><i class="v t"></i><i class="v b"></i></div>
@@ -89,7 +95,8 @@ body.play,body.play *{cursor:none!important}
       <button id="mm-map" type="button">Map: Mirage</button>
       <button id="mm-play" type="button">Play 5v5</button>
       <button id="mm-1v1" type="button">Play 1v1 (bot)</button>
-      <button id="mm-online" type="button">Invite 1v1 (link)</button>
+      <button id="mm-online" type="button">Host 1v1 (code / link)</button>
+      <button id="mm-join" type="button">Join by code</button>
       <button id="mm-ctrl" type="button">Controls</button>
       <button id="mm-model" type="button">Load 3D Model</button>
     </div>
@@ -99,6 +106,8 @@ body.play,body.play *{cursor:none!important}
   <div class="card">
     <h2>ONLINE 1v1</h2>
     <p id="lb-role">Creating private room…</p>
+    <div class="code" id="lb-code"></div>
+    <div class="join" id="lb-join"><input id="lb-input" maxlength="5" autocomplete="off" spellcheck="false" placeholder="ABCDE"><button id="lb-go" type="button">Join</button></div>
     <p class="st" id="lb-status"></p>
     <div class="link" id="lb-link"></div>
     <div class="row">
@@ -122,6 +131,6 @@ body.play,body.play *{cursor:none!important}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<script src="netplay.js?v=peer7"></script>
+<script src="netplay.js?v=peer8"></script>
 <script src="mapworld.js?v=map1"></script>
-<script src="game.js?v=map9"></script></body></html>
+<script src="game.js?v=code1"></script></body></html>

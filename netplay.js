@@ -28,10 +28,20 @@
     },
   };
 
+  // Room codes are letters only (no I/O, which read as 1/0); the host registers a PeerJS id derived from
+  // the code, so a guest can find the host from the code alone
+  const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const CODE_LEN = 5;
   function code() {
     let s = "";
-    for (let i = 0; i < 6; i++) s += ABC[(Math.random() * ABC.length) | 0];
+    for (let i = 0; i < CODE_LEN; i++) s += LETTERS[(Math.random() * LETTERS.length) | 0];
     return s;
+  }
+  function hostIdFor(c) {
+    return "strikearena-room-" + c.toLowerCase();
+  }
+  function cleanCode(c) {
+    return String(c || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, CODE_LEN);
   }
 
   const Netplay = {
@@ -55,8 +65,9 @@
     inviteUrl() {
       if (!this.room || !this.hostPeerId) return "";
       const u = new URL(location.href);
+      u.search = "";
       u.searchParams.set("room", this.room);
-      u.searchParams.set("host", this.hostPeerId);
+      if (this.hostPeerId !== hostIdFor(this.room)) u.searchParams.set("host", this.hostPeerId);
       u.hash = "";
       return u.toString();
     },
@@ -139,7 +150,11 @@
       });
     },
 
-    createRoom() {
+    CODE_LEN,
+    cleanCode,
+
+    createRoom(attempt) {
+      attempt = attempt || 0;
       this.leave(false);
       this.role = "host";
       this.room = code();
@@ -151,7 +166,7 @@
       }
       return new Promise((resolve, reject) => {
         let settled = false;
-        const peer = new Peer(PEER_OPTS);
+        const peer = new Peer(hostIdFor(this.room), PEER_OPTS);
         this.peer = peer;
 
         peer.on("open", (id) => {
@@ -183,6 +198,12 @@
         });
 
         peer.on("error", (e) => {
+          if (this.peer !== peer) return;
+          if (!settled && e && e.type === "unavailable-id" && attempt < 5) {
+            settled = true;
+            this.createRoom(attempt + 1).then(resolve, reject);
+            return;
+          }
           const msg = (e && e.type) || (e && e.message) || "Host error";
           this.setStatus("error", String(msg));
           if (!settled) {
@@ -225,10 +246,15 @@
     _scheduleJoinRetry(hostId) {
       if (this.connected) return;
       this._retries += 1;
-      if (this._retries > 8) {
+      // PeerJS only reports peer-unavailable once per missing id; repeat attempts just hang, so a code that
+      // isn't registered fails straight away instead of retrying
+      const max = this._byCode ? 0 : 8;
+      if (this._retries > max) {
         this.setStatus(
           "error",
-          "Could not reach host — keep host tab open, same site URL, try a new invite link"
+          this._byCode
+            ? "No room found with code " + this.room + " — check the code and that the host is still in the lobby"
+            : "Could not reach host — keep host tab open, same site URL, try a new invite link"
         );
         if (this._joinReject) {
           const r = this._joinReject;
@@ -238,7 +264,7 @@
         }
         return;
       }
-      this.setStatus("joining", "Retrying… (" + this._retries + "/8)");
+      this.setStatus("joining", "Retrying… (" + this._retries + "/" + max + ")");
       setTimeout(() => {
         if (this.connected) return;
         // peer-unavailable destroys the Peer — always make a fresh one
@@ -272,8 +298,26 @@
       }, 900 + 700 * this._retries);
     },
 
+    joinCode(c) {
+      c = cleanCode(c);
+      if (c.length !== CODE_LEN) {
+        this.setStatus("error", "Codes are " + CODE_LEN + " letters");
+        return Promise.reject(new Error("bad code"));
+      }
+      const p = this.joinRoom(c, hostIdFor(c));
+      this._byCode = true;
+      this._clearJoinTimer();
+      this._joinTimer = setTimeout(() => {
+        if (this.connected || !this._joinReject) return;
+        this._retries = 99;
+        this._scheduleJoinRetry(this.hostPeerId);
+      }, 12000);
+      return p;
+    },
+
     joinRoom(room, hostPeerId) {
       this.leave(false);
+      this._byCode = false;
       this.role = "guest";
       this.room = String(room || "")
         .toUpperCase()
@@ -372,9 +416,10 @@
       const room = q.get("room") || q.get("join");
       const host = q.get("host") || q.get("peer");
       if (!room && !host) return null;
+      const r = room ? String(room).toUpperCase() : "";
       return {
-        room: room ? String(room).toUpperCase() : "",
-        host: host ? String(host).trim() : "",
+        room: r,
+        host: host ? String(host).trim() : /^[A-Z]{5}$/.test(r) ? hostIdFor(r) : "",
       };
     },
   };
