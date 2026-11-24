@@ -652,12 +652,14 @@ sc.traverse(o=>{if(o!==sc&&o.scale&&Math.abs(o.scale.x-0.0254)<0.002&&Math.abs(o
 sc.updateMatrixWorld(true);
 sc.traverse(o=>{if(o.isSkinnedMesh&&o.skeleton){o.frustumCulled=false;o.bindMode='attached';o.skeleton.update()}if(o.isMesh){o.castShadow=true;o.frustumCulled=false;o.visible=true;const mats=Array.isArray(o.material)?o.material:[o.material];mats.forEach(m=>{if(!m)return;if(m.map){m.map.encoding=THREE.sRGBEncoding;m.map.needsUpdate=true}m.side=THREE.DoubleSide;m.transparent=false;m.opacity=1;m.depthWrite=true;m.needsUpdate=true})}});
 const wp=new THREE.Vector3();
-const boneSpan=()=>{let minY=Infinity,maxY=-Infinity;sc.updateMatrixWorld(true);sc.traverse(o=>{if(!o.isBone)return;o.getWorldPosition(wp);if(wp.y<minY)minY=wp.y;if(wp.y>maxY)maxY=wp.y});return(maxY>minY)?(maxY-minY):0};
+// Body bones only — Phoenix also has eye/IK/root-motion helper bones far from the body that skew size and centering
+const bodyBone=o=>o.isBone&&/^(pelvis|spine|neck|head|clavicle|arm|hand|leg|ankle|ball)/i.test(o.name)&&!/_end|iktarget|offset/i.test(o.name);
+const boneSpan=()=>{let minY=Infinity,maxY=-Infinity;sc.updateMatrixWorld(true);sc.traverse(o=>{if(!bodyBone(o))return;o.getWorldPosition(wp);if(wp.y<minY)minY=wp.y;if(wp.y>maxY)maxY=wp.y});return(maxY>minY)?(maxY-minY):0};
 let boneH=boneSpan();
 if(boneH>8){sc.scale.setScalar(0.0254);boneH=boneSpan()}// inches → meters
 else if(boneH>0&&boneH<0.35){sc.scale.setScalar(1.8/boneH);boneH=boneSpan()}
 if(boneH>0.05){sc.scale.multiplyScalar(1.8/boneH);sc.updateMatrixWorld(true)}
-const box=new THREE.Box3();sc.traverse(o=>{if(o.isBone){o.getWorldPosition(wp);box.expandByPoint(wp)}});
+const box=new THREE.Box3();sc.updateMatrixWorld(true);sc.traverse(o=>{if(bodyBone(o)){o.getWorldPosition(wp);box.expandByPoint(wp)}});
 if(!box.isEmpty()){sc.position.x-=(box.min.x+box.max.x)/2;sc.position.z-=(box.min.z+box.max.z)/2;sc.position.y-=box.min.y}
 return sc}
 function cloneAgentModel(tpl){if(!tpl)throw new Error('no skin');const model=THREE.SkeletonUtils&&THREE.SkeletonUtils.clone?THREE.SkeletonUtils.clone(tpl):tpl.clone(true);model.traverse(o=>{if(o.isSkinnedMesh){o.frustumCulled=false;o.visible=true}if(o.isMesh){o.visible=true;o.castShadow=true;o.frustumCulled=false}});return model}
@@ -666,16 +668,13 @@ root.traverse(o=>{if(!o.isBone)return;if(o.name===name)exact=exact||o;else if(re
 function botGunTpl(team){const id=team==='t'?'ak':'m4';return WEAPON_TPL[id]||BOT_GUN_TPL[id]}
 function fitTpGun(gun){gun.position.set(0,0,0);gun.updateMatrixWorld(true);
 let box=new THREE.Box3().setFromObject(gun),sz=box.getSize(new THREE.Vector3()),long=Math.max(sz.x,sz.y,sz.z,.001);
-gun.scale.multiplyScalar(.48/long);gun.updateMatrixWorld(true);
+gun.scale.multiplyScalar(.75/long);gun.updateMatrixWorld(true);
 box.setFromObject(gun);const mid=box.getCenter(new THREE.Vector3());gun.position.set(-mid.x,-mid.y,-mid.z);return gun}
 function mountBotGun(rig,model,team,bones){const gun=fitTpGun(cloneWeapon(botGunTpl(team)));
 gun.traverse(o=>{if(o.isMesh){o.frustumCulled=false;o.visible=true;o.renderOrder=2}});
 const fl=new THREE.Mesh(sph(.05,8,6),FLM);fl.position.set(0,.02,-.26);fl.visible=false;gun.add(fl);
-// Always chest-mounted (horizontal, muzzle forward). Hand-parenting left guns vertical in A-pose.
-const flip=!!(model&&Math.abs(model.rotation.y)>1);
-const hold=new THREE.Group();
-if(flip){hold.position.set(.1,1.22,.34);hold.rotation.set(.08,Math.PI,.18)}
-else{hold.position.set(.1,1.22,-.26);hold.rotation.set(.08,0,-.18)}
+// Chest-mounted, muzzle along the bot's forward (-Z); the arms are then IK'd onto it.
+const hold=new THREE.Group();hold.position.set(.1,1.25,-.3);hold.rotation.set(.04,0,0);
 hold.add(gun);rig.add(hold);return{rg:hold,fl}}
 function alignBoneAxis(bone,worldTarget){if(!bone||!bone.parent)return;const child=bone.children.find(c=>c.isBone);if(!child||child.position.lengthSq()<1e-10)return;
 const axis=alignBoneAxis._a||(alignBoneAxis._a=new THREE.Vector3()),o=alignBoneAxis._o||(alignBoneAxis._o=new THREE.Vector3());
@@ -686,11 +685,13 @@ cur.copy(axis).applyQuaternion(wq).normalize();want.copy(worldTarget).sub(o);if(
 dq.setFromUnitVectors(cur,want);wq.premultiply(dq);bone.parent.getWorldQuaternion(pq);bone.quaternion.copy(pq.invert().multiply(wq))}
 function poseArmsToGun(bn,rest,gunHold){if(!gunHold||!rest)return;
 ['arm_upper_l','arm_upper_r','arm_lower_l','arm_lower_r'].forEach(k=>{if(bn[k]&&rest[k]){bn[k].quaternion.copy(rest[k].q);bn[k].scale.copy(rest[k].s)}});
-gunHold.updateMatrixWorld(true);const gunMesh=gunHold.children.find(c=>!c.isLight)||gunHold;gunMesh.updateMatrixWorld(true);
+gunHold.updateMatrixWorld(true);
 const gR=poseArmsToGun._gR||(poseArmsToGun._gR=new THREE.Vector3()),gL=poseArmsToGun._gL||(poseArmsToGun._gL=new THREE.Vector3());
 const elR=poseArmsToGun._elR||(poseArmsToGun._elR=new THREE.Vector3()),sh=poseArmsToGun._sh||(poseArmsToGun._sh=new THREE.Vector3());
-// Gun local after fit: muzzle −Z, stock +Z
-gR.set(.02,-.03,.08).applyMatrix4(gunMesh.matrixWorld);gL.set(0,-.02,-.12).applyMatrix4(gunMesh.matrixWorld);
+// Wrist targets in hold space (unscaled, gun centred, 0.75m long, muzzle −Z); the hand mesh extends ~10cm past
+// the wrist, so these sit behind/below the pistol grip and handguard. Not the gun mesh's own space — the loaded
+// weapon root carries a large import scale.
+gR.set(0,.01,.19).applyMatrix4(gunHold.matrixWorld);gL.set(0,0,-.06).applyMatrix4(gunHold.matrixWorld);
 if(bn.arm_upper_r&&bn.arm_lower_r){bn.arm_upper_r.updateMatrixWorld(true);bn.arm_upper_r.getWorldPosition(sh);bn.arm_lower_r.getWorldPosition(elR);
 const l1=Math.max(sh.distanceTo(elR),.05),l2=l1*.92,reach=Math.min(sh.distanceTo(gR),(l1+l2)*.98);
 const dir=poseArmsToGun._dir||(poseArmsToGun._dir=new THREE.Vector3()),pv=poseArmsToGun._pv||(poseArmsToGun._pv=new THREE.Vector3());
@@ -1060,7 +1061,7 @@ function updBots(dt){
 for(const b of bots){
 if(!b.alive){b.fall=Math.min(1,(b.fall||0)+dt*2.2);b.g.rotation.x=b.fall*1.5;continue}
 if(b.net)continue;
-if(freezeT>0)continue;
+if(freezeT>0){animBot(b,0,dt);continue}
 const ct=b.team==='ct';bp.set(b.x,1.5,b.z);
 let tg=null,td=1e9;
 if(ct&&!P.dead){const d=Math.hypot(P.x-b.x,P.z-b.z);if(d<45){pp.set(P.x,P.y+P.h-.1,P.z);if(los(bp,pp)){tg=P;td=d}}}
