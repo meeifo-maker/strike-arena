@@ -619,7 +619,7 @@ function quitMatch(){
 }
 function down(c){keys[c]=true;
 if(rebind){if(c!=='Escape'){for(const a in K)if(K[a]===c)K[a]=K[rebind];K[rebind]=c;save();bindUntil=performance.now()+350}rebind=null;renderSet();return}
-if(c==='Escape'){if(closeMenus())return;if(escMenu){closeEscMenu();return}if(state!=='play')return;if(performance.now()<menuGrace)return;showEscMenu();return}
+if(c==='Escape'){if(closeMenus())return;if(escMenu){closeEscMenu(true);return}if(state!=='play')return;if(performance.now()<menuGrace)return;showEscMenu();return}
 if(state!=='play'||escMenu)return;
 if(c===K.fire){if(buyOpen||menuOpen()||document.pointerLockElement!==renderer.domElement||performance.now()<menuGrace)return;mouseDown=true}
 if(c===K.scope&&W[cur].scope&&reloading<=0)scoped=!scoped;
@@ -973,7 +973,7 @@ g.connect(ac.destination);if(dur>.08){const g2=ac.createGain();g2.gain.value=vol
 if(dur>.08&&vol>.15){const o=ac.createOscillator(),og=ac.createGain(),t0=ac.currentTime;o.frequency.setValueAtTime(140,t0);o.frequency.exponentialRampToValueAtTime(40,t0+.15);og.gain.setValueAtTime(vol*.8,t0);og.gain.exponentialRampToValueAtTime(.001,t0+.18);o.connect(og);og.connect(ac.destination);o.start();o.stop(t0+.2)}}
 
 // Input
-const cv=renderer.domElement;
+const cv=renderer.domElement;let lockAt=0;
 $('ov').addEventListener('click',e=>{
 if(e.target.closest&&(e.target.closest('#cfg')||e.target.closest('#ldm')||e.target.closest('#ov-back')||e.target.closest('#ov-quit')||e.target.closest('#ov-resume')||e.target.closest('button')))return;
 if(escMenu){closeEscMenu();return}
@@ -986,8 +986,8 @@ try{if(prev==='menu'){if(online)showMainMenu();else resetGame()}else if(prev==='
 });
 $('relock').addEventListener('click',e=>{e.stopPropagation();menuGrace=performance.now()+250;try{const p=cv.requestPointerLock&&cv.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}catch(err){}});
 document.addEventListener('pointerlockchange',()=>{
-if(document.pointerLockElement===cv)hadLock=true;
-else if(hadLock&&state==='play'&&!escMenu&&!buyOpen&&$('set').style.display!=='block'&&$('mdl').style.display!=='block'&&performance.now()>=menuGrace)showEscMenu();
+if(document.pointerLockElement===cv){hadLock=true;lockAt=performance.now()}
+else if(hadLock&&performance.now()-lockAt>400&&state==='play'&&!escMenu&&!buyOpen&&$('set').style.display!=='block'&&$('mdl').style.display!=='block'&&performance.now()>=menuGrace)showEscMenu();
 });
 function showEscMenu(){
   // Match keeps running (unpausable) — ESC only opens leave/resume UI
@@ -1006,10 +1006,12 @@ function showEscMenu(){
   const resume=$('ov-resume');if(resume)resume.onclick=e=>{e.stopPropagation();closeEscMenu()};
   const quit=$('ov-quit');if(quit)quit.onclick=e=>{e.stopPropagation();quitMatch()};
 }
-function closeEscMenu(){
+// fromEsc: Chrome treats the Esc that closed the menu as "unlock", so re-locking from it grabs and drops the
+// mouse straight away. Leave it to the click-to-resume prompt instead.
+function closeEscMenu(fromEsc){
   if(!escMenu)return;
   escMenu=false;$('ov').style.display='none';
-  if(state==='play'){document.body.classList.add('play');try{const p=cv.requestPointerLock&&cv.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}catch(err){}}
+  if(state==='play'&&!fromEsc){document.body.classList.add('play');try{const p=cv.requestPointerLock&&cv.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}catch(err){}}
 }
 function showOv(h,p,paused){document.body.classList.remove('play');$('mm').style.display='none';escMenu=false;
 if(paused){showEscMenu();return}
