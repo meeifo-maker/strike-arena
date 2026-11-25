@@ -75,7 +75,8 @@ const arenaObjs=scene.children.filter(o=>!preArena.has(o)&&!o.isSprite),arenaBox
 const MAPS={mirage:{name:'Mirage',file:'assets/maps/mirage.bin',key:'map-mirage-v1',
   t:{x:23.9,y:-4.19,z:57.7,look:[0,57.7],r:5},ct:{x:-22.7,y:-6.81,z:-13.2,look:[-40,-13],r:5},
   // From tools/find-ladders.cjs: [x, z, widthAxis (0=x,1=z), width, yBottom, yTop]
-  ladders:[[18.25,0.21,0,0.96,-6.72,-1.35],[18.17,1.35,0,0.96,-6.72,-1.35],[17.4,-0.21,1,0.97,-6.59,-1.18],[17.48,-1.4,1,0.97,-6.59,-1.18],[20.42,-0.19,1,0.97,-6.59,-1.18],[17.35,3.66,1,0.46,-4.75,-0.86],[21.94,-0.22,1,0.96,-4.43,0.98],[21.84,-1.44,1,0.97,-4.43,0.98],[-5.23,-5.91,1,0.97,-4.02,1.39],[0.42,-5.36,0,0.96,-4.02,1.4],[1.83,-5.91,1,0.97,-4.02,1.4],[-25.69,33.02,0,0.96,-4.02,7.08],[-28.33,33.02,0,0.96,-4.02,7.08],[-29.34,33.02,0,0.97,-4.02,1.4],[-9.2,52.31,1,0.96,3.09,8.5],[-9.2,54.08,1,0.96,3.09,8.5],[-9.2,55.46,1,0.97,3.09,14.19],[-9.2,57.28,1,0.96,3.09,14.19]]}};
+  ladders:[[18.25,0.21,0,0.96,-6.72,-1.35],[18.17,1.35,0,0.96,-6.72,-1.35],[17.4,-0.21,1,0.97,-6.59,-1.18],[17.48,-1.4,1,0.97,-6.59,-1.18],[20.42,-0.19,1,0.97,-6.59,-1.18],[17.35,3.66,1,0.46,-4.75,-0.86],[21.94,-0.22,1,0.96,-4.43,0.98],[21.84,-1.44,1,0.97,-4.43,0.98],[-5.23,-5.91,1,0.97,-4.02,1.39],[0.42,-5.36,0,0.96,-4.02,1.4],[1.83,-5.91,1,0.97,-4.02,1.4],[-25.69,33.02,0,0.96,-4.02,7.08],[-28.33,33.02,0,0.96,-4.02,7.08],[-29.34,33.02,0,0.97,-4.02,1.4],[-9.2,52.31,1,0.96,3.09,8.5],[-9.2,54.08,1,0.96,3.09,8.5],[-9.2,55.46,1,0.97,3.09,14.19],[-9.2,57.28,1,0.96,3.09,14.19]]},
+  dust2:{name:'Dust 2',file:'assets/maps/dust2.bin',key:'map-dust2-v1',t:{x:4.4,y:6.53,z:51.4,look:[4,20],r:5},ct:{x:8.2,y:2.77,z:-21.1,look:[4,10],r:5},ladders:[]}};
 let mapId=(()=>{try{const m=localStorage.getItem('strike_map');return m==='arena'||MAPS[m]?m:'mirage'}catch(e){return'mirage'}})();
 const mapW={},mapSt={};let world=null;
 function mapReady(id){id=id||mapId;return id==='arena'||mapSt[id]==='ready'||mapSt[id]==='failed'}
@@ -600,7 +601,7 @@ try{history.replaceState({},'',location.pathname)}catch(e){}}
 function goPlayBriefing(mode){gameMode=mode||'arena';if(mode!=='online')online=false;$('mm').style.display='none';if($('lobby'))$('lobby').style.display='none';$('ov').innerHTML=briefingHtml();$('ov').style.display='flex';refreshLoadUi();
 const back=$('ov-back');if(back)back.onclick=e=>{e.stopPropagation();showMainMenu()}}
 $('mm-play').onclick=()=>goPlayBriefing('arena');
-const mmMap=$('mm-map');if(mmMap){updMapBtn();mmMap.onclick=()=>setMapChoice(mapId==='arena'?'mirage':'arena')}
+const mmMap=$('mm-map');if(mmMap){updMapBtn();mmMap.onclick=()=>{const L=['arena',...Object.keys(MAPS)];setMapChoice(L[(L.indexOf(mapId)+1)%L.length])}}
 const mm1=$('mm-1v1');if(mm1)mm1.onclick=()=>goPlayBriefing('1v1');
 $('mm-ctrl').onclick=()=>{mouseDown=false;semiLock=false;renderSet();$('set').style.display='block'};
 $('mm-model').onclick=()=>{mouseDown=false;semiLock=false;renderMdl();$('mdl').style.display='block'};
@@ -1252,7 +1253,7 @@ if(!w){sun.position.set(25,40,15);sun.target.position.set(0,0,0);sun.target.upda
 function setMapChoice(id){mapId=id;try{localStorage.setItem('strike_map',id)}catch(e){}if(id!=='arena')loadMap(id);applyMap(id);refreshLoadUi();updMapBtn()}
 function updMapBtn(){const b=$('mm-map');if(b)b.innerHTML='<b>Map: '+(mapId==='arena'?'Arena':MAPS[mapId].name)+'</b><small>Click to change map</small>'}
 function spawnOf(team){const m=world&&MAPS[mapId];return m?m[team]:null}
-loadAgentSkin('ct');loadAgentSkin('t');loadAllWeapons();loadMap('mirage');
+loadAgentSkin('ct');loadAgentSkin('t');loadAllWeapons();loadMap(mapId==='arena'?'mirage':mapId);
 function buildBot(team){if(team==='ct'&&ctSkinTpl){try{return buildSkinnedBot('ct')}catch(err){console.warn('CT skin clone failed',err)}}
 if(team==='t'&&tSkinTpl){try{return buildSkinnedBot('t')}catch(err){console.warn('T skin clone failed',err)}}
 const m=teamMats(team),T=team==='t',g=new THREE.Group(),rig=new THREE.Group();g.rotation.order='YXZ';g.add(rig);
