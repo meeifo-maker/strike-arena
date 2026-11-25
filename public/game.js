@@ -143,6 +143,7 @@ sniper:{gx:.23,gy:-.19,gz:-.34,tip:.015,hold:[0,0,0],hx:.17,hy:-.33,hz:-.4,psx:.
 nade:{gx:.12,gy:-.07,gz:-.3,tip:-.04,hx:.1,hy:-.46,hz:-.38,psx:.85,psy:.78},
 knife:{gx:.13,gy:-.08,gz:-.28,tip:.02,hx:.1,hy:-.46,hz:-.36,psx:.8,psy:.75}
 };
+const VIEW_Z={ak:.14};
 const HAND_TEX={pistol:null,rifle:null};let handTexLoading=false,viewHandPlate=null,viewHandsRoot=null;
 function handPlateKey(cat){return(cat==='rifle'||cat==='smg'||cat==='sniper')?'rifle':'pistol'}
 function loadHandTextures(){if(handTexLoading||(HAND_TEX.pistol&&HAND_TEX.rifle))return;handTexLoading=true;
@@ -1288,7 +1289,7 @@ const cat=viewCat(cur),vp=VIEW_POSE[cat]||VIEW_POSE.rifle;const gy=gun.userData.
 lyaw=P.yaw;lpit=P.pitch;swY=0;swX=0;
 const moving=P.speed>0&&(P.gnd||!world)&&!P.lad;bobA+=((moving?P.speed:0)-bobA)*Math.min(1,dt*8);if(moving)bobT+=dt*(5+4*P.speed);
 const bA=bobA*(scoped?.2:1),bx=Math.sin(bobT)*.011*bA,by=-Math.abs(Math.cos(bobT))*.013*bA;
-gun.position.set(vp.gx+bx,gy+by-rl*.05+vkick*.012,vp.gz+kick*.005+vkick*.035);
+gun.position.set(vp.gx+bx,gy+by-rl*.05+vkick*.012,vp.gz+(VIEW_Z[cur]||0)+kick*.005+vkick*.035);
 gun.rotation.set((vp.tip||0)+kick*.006+rl*.12+vkick*.07+by*.6,0,bx*1.4);
 const wantKey=handPlateKey(cat);
 if(viewGlove&&viewGlove.parent===gun){if(gun.userData.viewCat!==cat)mountViewHands()}
