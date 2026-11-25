@@ -121,10 +121,10 @@ ak:{n:'AK-47',price:2700,slot:1,mag:30,res:90,rate:.1,auto:true,dmg:36,base:.001
 awp:{n:'AWP',price:4750,slot:1,mag:5,res:30,rate:1.46,auto:false,dmg:115,base:.0002,mv:.07,rs:0,sc:1,kick:5,vk:2.2,rl:3.2,spd:.8,scope:true,kill:100}};
 // ---------- Skins + coins. Coins are only earned in offline bot matches; equipped skins are sent to online opponents ----------
 const SKIN_CATS=[['Pistols',['glock','deagle']],['SMGs',['mp9']],['Rifles',['ak','m4']],['Snipers',['awp']],['Knives',['knife']]];
-// skin: {id,name,value, tint?:'#rrggbb', tex?:'assets/skins/....jpg'} — a skin with neither keeps the stock look
+// skin: {id,name,value, tint?:'#rrggbb', metal?, rough?, tex?:'assets/skins/....jpg'} — a skin with neither keeps the stock look
 // model: replaces the weapon's mesh (fix = extra hold rotation for that model)
 const SKINS={};for(const [,ids] of SKIN_CATS)for(const id of ids)SKINS[id]=[{id:'base',name:'Base',value:0}];
-SKINS.knife.push({id:'scary',name:'Scary Knife',value:300,model:'assets/skins/knife-scary.glb',fix:{rz:Math.PI/2,z:-.16,y:-.035}});
+SKINS.knife.push({id:'scary',name:'Scary Knife',value:300,model:'assets/skins/knife-scary.glb',tint:'#e8b830',metal:.6,rough:.35,fix:{rz:Math.PI/2,z:-.16,y:-.035}});
 const SKIN_TPL={},skinLoading={};
 function skinModel(id){const k=skinDef(id,vmSkin(id));if(!k||!k.model)return null;if(SKIN_TPL[k.model])return SKIN_TPL[k.model];
   if(!skinLoading[k.model]&&THREE.GLTFLoader){skinLoading[k.model]=1;fetch(k.model).then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(parseGlb).then(g=>{SKIN_TPL[k.model]=prepareWeapon(g.scene,WEAPON_FILES[id]?WEAPON_FILES[id].kind:'knife',id);if(vmId()===id)buildModel(id)}).catch(e=>{console.warn('skin load failed',k.model,e);skinLoading[k.model]=0})}return null}
@@ -144,7 +144,7 @@ function applySkin(root,wid,sid){if(!root)return;const k=skinDef(wid,sid),skip=[
 const walk=o=>{if(skip.includes(o))return;
   if(o.isMesh){if(o.userData.baseMat===undefined)o.userData.baseMat=o.material;
     if(!k||(!k.tint&&!k.tex))o.material=o.userData.baseMat;
-    else{const b=Array.isArray(o.userData.baseMat)?o.userData.baseMat[0]:o.userData.baseMat,m=b.clone();if(k.tint)m.color=new THREE.Color(k.tint);if(k.tex){m.map=skinTex(k.tex);m.needsUpdate=true}o.material=m}}
+    else{const b=Array.isArray(o.userData.baseMat)?o.userData.baseMat[0]:o.userData.baseMat,m=b.clone();if(k.tint)m.color=new THREE.Color(k.tint);if(k.metal!=null&&'metalness' in m)m.metalness=k.metal;if(k.rough!=null&&'roughness' in m)m.roughness=k.rough;if(k.tex){m.map=skinTex(k.tex);m.needsUpdate=true}o.material=m}}
   for(const c of o.children)walk(c)};walk(root)}
 function vmSkin(id){if(specId)return specBot&&specBot.st&&specBot.st.w===id&&specBot.st.sk||'base';return eqSkin(id)}
 function applyRemoteSkin(b,r){const u=b.g&&b.g.userData;if(!u||!u.gun)return;const gw=b.team==='t'?'ak':'m4',sid=r.w===gw&&r.sk?r.sk:'base',key=u.gun.uuid+':'+sid;if(b.skKey===key)return;b.skKey=key;applySkin(u.gun,gw,sid)}
