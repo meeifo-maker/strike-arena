@@ -102,7 +102,7 @@ function groundAt(x,z,y){if(world){const g=world.ground(x,z,y+world.STEP);return
 // Gun
 const gun=new THREE.Group();
 // Parent of the viewmodel; scale.x=-1 mirrors gun + arms for left-handed mode
-const vmRoot=new THREE.Group();vmRoot.add(gun);let leftHand=false,inspT=0;
+const vmRoot=new THREE.Group();vmRoot.add(gun);let leftHand=false,inspT=0,swing=null,swingSide=1;
 // While dead: first-person view from a living teammate; the viewmodel shows their gun (specId) instead of ours
 let specId=null,specBot=null,specYaw=0;function vmId(){return specId||cur}
 const specMsg=document.createElement('div');specMsg.textContent='You died, you are currently spectating';
@@ -235,7 +235,8 @@ for(const s of ['L','R','O']){const pv=u.arms[s],c=P[s];if(!pv)continue;pv.visib
 if(c.cam){const vp=VIEW_POSE[cat]||VIEW_POSE.rifle,q=new THREE.Quaternion().setFromEuler(new THREE.Euler(vp.tip||0,vp.ry||0,vp.rz||0)).invert(),
 o=new THREE.Vector3(vp.gx,vp.gy-(VM_DROP[cat]||0),vp.gz+(VIEW_Z[vmId()]||0)).multiplyScalar(1/(VM_ZOOM[cat]||1));
 pv.position.fromArray(c.at).sub(o).applyQuaternion(q);_ay.fromArray(c.f).normalize().applyQuaternion(q);_ax.fromArray(c.p).applyQuaternion(q);
-_ax.addScaledVector(_ay,-_ax.dot(_ay)).normalize().negate();_az.crossVectors(_ax,_ay);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);continue}
+_ax.addScaledVector(_ay,-_ax.dot(_ay)).normalize().negate();_az.crossVectors(_ax,_ay);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);pv.userData.camL=new THREE.Matrix4().compose(pv.position,pv.quaternion,pv.scale);continue}
+pv.userData.camL=null;
 if(c.up){const g=c.mag&&magGrip(),at=g?g.at:c.at;_ax.fromArray(c.p).negate().normalize();_az.fromArray(g?g.up:c.up).multiplyScalar(s==='L'?-1:1);_az.addScaledVector(_ax,-_az.dot(_ax)).normalize();
 _ay.crossVectors(_az,_ax);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);pv.position.fromArray(at);continue}
 _ay.fromArray(c.f).normalize();_ax.fromArray(c.p);_ax.addScaledVector(_ay,-_ax.dot(_ay)).normalize().negate();
@@ -261,7 +262,7 @@ plate.frustumCulled=false;plate.renderOrder=vp.over?10:2;viewHandsRoot.add(plate
 if(gun){gun.traverse(o=>{if(o.isMesh&&!o.userData.viewHands){o.renderOrder=6;if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];for(const m of ms){m.depthTest=true;m.depthWrite=true;m.transparent=false}}}});gun.userData.viewCat=cat}
 window.__vh={cat,key,pos:plate.position.toArray(),size:[vp.psx,vp.psy]}}catch(err){console.warn('viewHands failed',err)}}
 function buildModel(id){while(gun.children.length)gun.remove(gun.children[0]);gun.userData.loaded=false;if(custom&&cfgM.id===id){gun.add(custom.root);gun.add(flash);placeCustom();scoped=false;mountViewHands();return}if(placeLoadedWeapon(id)){scoped=false;mountViewHands();return}const BD={ak:buildAK,m4:buildM4,glock:buildGlock2,deagle:buildDeagle2,mp9:buildMP9,awp:buildAWP,knife:buildKnife,he:()=>buildNade2('he'),flash:()=>buildNade2('flash'),smoke:()=>buildNade2('smoke')};scoped=false;if(BD[id])BD[id]();mountViewHands()}
-function setWeapon(id){if(inv[cur]){inv[cur].ammo=ammo;inv[cur].reserve=reserve}cur=id;inspT=0;ammo=inv[id].ammo;reserve=inv[id].reserve;reloading=0;buildModel(id);updHud()}
+function setWeapon(id){if(inv[cur]){inv[cur].ammo=ammo;inv[cur].reserve=reserve}cur=id;inspT=0;swing=null;ammo=inv[id].ammo;reserve=inv[id].reserve;reloading=0;buildModel(id);updHud()}
 function cycleWeapons(dir){const owned=[];for(const k of Object.keys(W)){if(!inv[k])continue;if(W[k].nade&&(!(k in nades)||nades[k]<=0))continue;owned.push(k)}owned.sort((a,b)=>(W[a].slot-W[b].slot)||a.localeCompare(b));if(owned.length<2)return;let i=owned.indexOf(cur);if(i<0)i=0;const n=owned[(i+dir+owned.length*10)%owned.length];if(n!==cur)setWeapon(n)}
 function grainTex(){const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');x.fillStyle='#7a4220';x.fillRect(0,0,256,256);
 for(let i=0;i<140;i++){x.strokeStyle='rgba('+(Math.random()<.55?'45,20,6':'180,115,62')+','+(.08+Math.random()*.22)+')';x.lineWidth=.5+Math.random()*2.2;x.beginPath();const y=Math.random()*256;x.moveTo(0,y);for(let q=1;q<=8;q++)x.lineTo(q*32,y+Math.sin(q*1.3+i)*5);x.stroke()}
@@ -329,11 +330,33 @@ const nl=[],smokeMeshes=[],smokeL=[],efx=[],nadeN=new THREE.Vector3();let blindT
 function equipKnife(){inv.knife=inv.knife||{ammo:1,reserve:0};if(cur!=='knife')setWeapon('knife')}
 function equipNade(id){if(nades[id]<=0){feed('No '+G[id].n+' — buy one with B');return}inv[id]=inv[id]||{ammo:1,reserve:0};if(cur!==id)setWeapon(id)}
 function back(){if(inv[cur])return;swap(1);if(!inv[cur])swap(2);if(!inv[cur])equipKnife()}
-function slash(){fireCd=.55;kick=1.5;snd(.12,.08,2500);const dir=tmp.set(0,0,-1).applyQuaternion(camera.quaternion).clone();ray.set(camera.position,dir);ray.far=2.8;
-if(online){onlineHitscan(dir);return}
+// Knife swings: keyframes are [progress, x,y,z, rx,ry,rz] offsets on the viewmodel; light slashes alternate sides
+const SWING={light:{dur:.42,keys:[[0,0,0,0,0,0,0],[.2,.05,.04,0,-.2,-.3,-.5],[.5,-.15,-.09,-.07,.45,.55,.85],[1,0,0,0,0,0,0]]},
+heavy:{dur:.95,keys:[[0,0,0,0,0,0,0],[.32,.03,.03,.04,-.4,.1,.2],[.46,-.05,.02,-.15,.08,-.1,-.15],[.62,-.05,.02,-.14,.06,-.1,-.15],[1,0,0,0,0,0,0]]}};
+// The open hand is camera-anchored but parented to the gun: undo the swing offset on it so only the knife moves
+const _hm1=new THREE.Matrix4(),_hm2=new THREE.Matrix4(),_hm3=new THREE.Matrix4(),_hv=new THREE.Vector3(),_hq=new THREE.Quaternion(),_he=new THREE.Euler();
+function holdOpenHand(sw,z){const pv=viewGlove&&viewGlove.userData.arms&&viewGlove.userData.arms.O;if(!pv||!pv.visible||!pv.userData.camL)return;
+if(!sw){if(pv.userData.swung){pv.userData.camL.decompose(pv.position,pv.quaternion,pv.scale);pv.userData.swung=false}return}
+gun.updateMatrix();gun.updateMatrixWorld(true);
+_hv.set(gun.position.x-sw[0]*z,gun.position.y-sw[1]*z,gun.position.z-sw[2]*z);_hq.setFromEuler(_he.set(gun.rotation.x-sw[3],gun.rotation.y-sw[4],gun.rotation.z-sw[5]));
+_hm2.compose(_hv,_hq,gun.scale);
+_hm3.copy(gun.matrixWorld).invert().multiply(pv.parent.matrixWorld);
+_hm1.copy(gun.matrix).invert().multiply(_hm2).multiply(_hm3);
+_hm1.premultiply(_hm2.copy(_hm3).invert()).multiply(pv.userData.camL);
+_hm1.decompose(pv.position,pv.quaternion,pv.scale);pv.userData.swung=true}
+function swingPose(dt){if(!swing)return null;const S=SWING[swing.type];swing.t+=dt;const p=Math.min(1,swing.t/S.dur),k=S.keys;if(p>=1){swing=null;return null}
+let i=0;while(i<k.length-2&&p>k[i+1][0])i++;const a=k[i],b=k[i+1],u=(p-a[0])/(b[0]-a[0]),e=u*u*(3-2*u),m=swing.side;
+return a.slice(1).map((v,j)=>{const r=v+(b[j+1]-v)*e;return j===0||j===4||j===5?r*m:r})}
+function knifeHit(dmgB,dmgH,range){const dir=tmp.set(0,0,-1).applyQuaternion(camera.quaternion).clone();
+if(online){onlineHitscan(dir,range,dmgB,dmgH);return}
+ray.set(camera.position,dir);ray.far=range;
 const hs=ray.intersectObjects(boxMeshes.concat(botMeshes),false);
-if(hs.length){const o=hs[0].object;if(o.userData.bot&&o.userData.bot.alive){const b=o.userData.bot,dmg=o.userData.head?100:50;
-if(party&&b.net){ptHit(b,o.userData.head,dmg,hs[0].point);return}b.hp-=dmg;b.seen=1;b.stun=.4;burst(hs[0].point,10,0x7a0c0c,3);snd(.25,.05,900);if(b.hp<=0)killBot(b,false)}else burst(hs[0].point,4,0xc9b88a,2)}}
+if(hs.length){const o=hs[0].object;if(o.userData.bot&&o.userData.bot.alive){const b=o.userData.bot,dmg=o.userData.head?dmgH:dmgB;
+if(party&&b.net){ptHit(b,o.userData.head,dmg,hs[0].point);return}b.hp-=dmg;b.seen=1;b.stun=.4;burst(hs[0].point,10,0x7a0c0c,3);snd(.25,.05,900);
+$('hit').style.opacity=1;setTimeout(()=>$('hit').style.opacity=0,80);if(b.hp<=0)killBot(b,o.userData.head)}else{burst(hs[0].point,4,0xc9b88a,2);snd(.08,.04,3500)}}}
+function slash(){fireCd=.5;inspT=0;swingSide=-swingSide;swing={type:'light',t:0,side:swingSide};snd(.12,.08,2500);knifeHit(50,100,2.8)}
+function stab(){if(fireCd>0||freezeT>0||P.dead)return;fireCd=1.1;mouseDown=false;inspT=0;swing={type:'heavy',t:0,side:1};snd(.1,.12,1400);
+const id=cur;setTimeout(()=>{if(cur!==id||P.dead||state!=='play')return;snd(.18,.07,1800);knifeHit(90,180,2.4)},400)}
 function nadeMesh(id){return new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,.12,10),new THREE.MeshStandardMaterial({color:{he:0x3f5a2f,flash:0xcfd2d6,smoke:0x7c8a95}[id],metalness:.6,roughness:.4}))}
 function throwNade(){const id=cur;if(nades[id]<=0)return;nades[id]--;fireCd=.8;kick=1;snd(.15,.1,800);
 const dir=new THREE.Vector3(0,.12,-1).applyQuaternion(camera.quaternion).normalize();
@@ -906,6 +929,7 @@ if(rebind){if(c!=='Escape'){for(const a in K)if(K[a]===c)K[a]=K[rebind];K[rebind
 if(c==='Escape'){if(closeMenus())return;if(escMenu){closeEscMenu(true);return}if(state!=='play')return;if(performance.now()<menuGrace)return;showEscMenu();return}
 if(state!=='play'||escMenu)return;
 if(c===K.fire){if(buyOpen||menuOpen()||document.pointerLockElement!==renderer.domElement||performance.now()<menuGrace)return;mouseDown=true}
+if(c===K.scope&&W[cur].melee&&!buyOpen&&!menuOpen()&&document.pointerLockElement===renderer.domElement&&performance.now()>=menuGrace)stab();
 if(c===K.scope&&W[cur].scope&&reloading<=0)scoped=!scoped;
 if(c===K.reload)reload();
 if(c===K.buy){buyOpen?closeBuy():openBuy()}
@@ -1328,13 +1352,13 @@ function applyOnlineHit(hd,dmg,hitPt){
   feed(hd?'★ Hit head':('Hit −'+Math.round(dmg)));
   return true;
 }
-function onlineHitscan(shotDir){
+function onlineHitscan(shotDir,maxD,dmgB,dmgH){maxD=maxD||120;dmgB=dmgB||W[cur].dmg;dmgH=dmgH||dmgB*4;
   if(!online||!netBot||!netBot.alive||!window.Netplay||!Netplay.connected)return false;
   // Prefer real hit meshes (host/guest avatars) so shots don't "pass through"
   if(netBot.body)netBot.body.updateMatrixWorld(true);
   if(netBot.head)netBot.head.updateMatrixWorld(true);
   if(netBot.g)netBot.g.updateMatrixWorld(true);
-  ray.set(camera.position,shotDir);ray.far=120;
+  ray.set(camera.position,shotDir);ray.far=maxD;
   const targets=[];
   if(netBot.body)targets.push(netBot.body);
   if(netBot.head)targets.push(netBot.head);
@@ -1343,7 +1367,7 @@ function onlineHitscan(shotDir){
   if(meshHits.length){
     const wallHits=ray.intersectObjects(boxMeshes,false);
     if(!wallHits.length||wallHits[0].distance>=meshHits[0].distance-0.05){
-      const o=meshHits[0].object,hd=!!o.userData.head,dmg=hd?W[cur].dmg*4:W[cur].dmg;
+      const o=meshHits[0].object,hd=!!o.userData.head,dmg=hd?dmgH:dmgB;
       return applyOnlineHit(hd,dmg,meshHits[0].point.clone());
     }
     return false;
@@ -1353,7 +1377,7 @@ function onlineHitscan(shotDir){
   const hx=netBot.x,hz=netBot.z;
   const hy=(netBot.g&&netBot.g.position?netBot.g.position.y:0)+(netBot.crouch?0.85:1.25);
   const ox=hx-eye.x,oy=hy-eye.y,oz=hz-eye.z;
-  const dist=Math.hypot(ox,oy,oz);if(dist<0.35||dist>120)return false;
+  const dist=Math.hypot(ox,oy,oz);if(dist<0.35||dist>maxD)return false;
   const t=Math.max(0,ox*shotDir.x+oy*shotDir.y+oz*shotDir.z);
   const cx=eye.x+shotDir.x*t,cy=eye.y+shotDir.y*t,cz=eye.z+shotDir.z*t;
   const miss=Math.hypot(cx-hx,cy-hy,cz-hz);
@@ -1362,7 +1386,7 @@ function onlineHitscan(shotDir){
   const wallHits=ray.intersectObjects(boxMeshes,false);
   if(wallHits.length&&wallHits[0].distance<t-0.2)return false;
   const hd=miss<0.5&&(hy-eye.y)>0.15;
-  return applyOnlineHit(hd,hd?W[cur].dmg*4:W[cur].dmg,new THREE.Vector3(cx,cy,cz));
+  return applyOnlineHit(hd,hd?dmgH:dmgB,new THREE.Vector3(cx,cy,cz));
 }
 function shoot(){
 if(W[cur].melee){slash();return}if(W[cur].nade){throwNade();return}ammo--;fireCd=W[cur].rate;kick=1;vkick=Math.min(vkick+(W[cur].vk||.5),2.2);flash.visible=true;flash.rotation.z=Math.random()*6.28;mlight.intensity=2.5;setTimeout(()=>{flash.visible=false;mlight.intensity=0},45);snd(.6,.22,3000);
@@ -1569,11 +1593,13 @@ lyaw=P.yaw;lpit=P.pitch;swY=0;swX=0;
 const moving=P.speed>0&&(P.gnd||!world)&&!P.lad;bobA+=((moving?P.speed:0)-bobA)*Math.min(1,dt*8);if(moving)bobT+=dt*(5+4*P.speed);
 const bA=bobA*(scoped?.2:1),bx=Math.sin(bobT)*.011*bA,by=-Math.abs(Math.cos(bobT))*.013*bA;
 if(mouseDown||reloading>0||scoped||P.dead)inspT=0;
-let ix=0,iy=0,irx=0,iry=0,irz=0;
+let ix=0,iy=0,irx=0,iry=0,irz=0,iz=0;
+const swp=cat==='knife'&&!specId?swingPose(dt):(swing=null,null);if(swp){ix+=swp[0];iy+=swp[1];iz+=swp[2];irx+=swp[3];iry+=swp[4];irz+=swp[5]}
 if(inspT>0){inspT-=dt;const p=1-inspT/INSPECT,sm=t=>t<=0?0:t>=1?1:t*t*(3-2*t),e=sm(p/.15)*(1-sm((p-.85)/.15)),s=sm((p-.15)/.7);
 ix=-.06*e;iy=.04*e;irx=-.15*e;iry=e*(.8-1.4*s);irz=e*.35*Math.sin(Math.PI*s)}
-gun.position.set(vp.gx+bx+ix,gy-(VM_DROP[cat]||0)+by+iy-rl*.05+vkick*.012,vp.gz+(VIEW_Z[vmId()]||0)+kick*.005+vkick*.035).multiplyScalar(1/(VM_ZOOM[cat]||1));
+gun.position.set(vp.gx+bx+ix,gy-(VM_DROP[cat]||0)+by+iy-rl*.05+vkick*.012,vp.gz+(VIEW_Z[vmId()]||0)+iz+kick*.005+vkick*.035).multiplyScalar(1/(VM_ZOOM[cat]||1));
 gun.rotation.set((vp.tip||0)+irx+kick*.006+rl*.12+vkick*.07+by*.6,(vp.ry||0)+iry,(vp.rz||0)+irz+bx*1.4);
+holdOpenHand(swp,1/(VM_ZOOM[cat]||1));
 const wantKey=handPlateKey(cat);
 if(viewGlove&&viewGlove.parent===gun){if(gun.userData.viewCat!==cat)mountViewHands()}
 else if(!viewHandPlate||viewHandPlate.userData.handKey!==wantKey||gun.userData.viewCat!==cat||gloveState==='ready')mountViewHands();
