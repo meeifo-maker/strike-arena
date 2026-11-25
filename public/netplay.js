@@ -37,9 +37,11 @@
     for (let i = 0; i < CODE_LEN; i++) s += LETTERS[(Math.random() * LETTERS.length) | 0];
     return s;
   }
-  function hostIdFor(c) {
-    return "strikearena-room-" + c.toLowerCase();
+  // Private lobbies (many players) live in their own id space so a 1v1 code can't land in a lobby
+  function hostIdFor(c, multi) {
+    return (multi ? "strikearena-lobby-" : "strikearena-room-") + c.toLowerCase();
   }
+  const MAX_GUESTS = 9;
   function cleanCode(c) {
     return String(c || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, CODE_LEN);
   }
@@ -61,13 +63,19 @@
     onMessage: null,
     onConnected: null,
     onDisconnected: null,
+    // Lobby mode: the host keeps one connection per guest and relays between them
+    multi: false,
+    conns: new Map(),
+    myId: null,
+    onPeerJoin: null,
+    onPeerLeave: null,
 
     inviteUrl() {
       if (!this.room || !this.hostPeerId) return "";
       const u = new URL(location.href);
       u.search = "";
-      u.searchParams.set("room", this.room);
-      if (this.hostPeerId !== hostIdFor(this.room)) u.searchParams.set("host", this.hostPeerId);
+      u.searchParams.set(this.multi ? "lobby" : "room", this.room);
+      if (this.hostPeerId !== hostIdFor(this.room, this.multi)) u.searchParams.set("host", this.hostPeerId);
       u.hash = "";
       return u.toString();
     },
@@ -89,6 +97,12 @@
         peer = this.peer;
       this.conn = null;
       this.peer = null;
+      for (const c of this.conns.values()) {
+        try {
+          c.close();
+        } catch (e) {}
+      }
+      this.conns.clear();
       try {
         if (conn) conn.close();
       } catch (e) {}
@@ -150,12 +164,82 @@
       });
     },
 
+    // Host side of a lobby: every guest gets its own connection; messages are tagged with the sender's id
+    _wireGuest(conn) {
+      const id = conn.peer;
+      const parse = (msg) => {
+        try {
+          if (typeof msg === "string") msg = JSON.parse(msg);
+        } catch (e) {
+          return null;
+        }
+        if (msg && msg.data && msg.data.t) msg = msg.data;
+        return msg && typeof msg === "object" && msg.t ? msg : null;
+      };
+      conn.on("data", (raw) => {
+        if (this.conns.get(id) !== conn) return;
+        const msg = parse(raw);
+        if (!msg) return;
+        msg.from = id;
+        this.onMessage && this.onMessage(msg);
+      });
+      const opened = () => {
+        if (this.conns.get(id) === conn) return;
+        const old = this.conns.get(id);
+        this.conns.set(id, conn);
+        if (old) {
+          try {
+            old.close();
+          } catch (e) {}
+        } else this.onPeerJoin && this.onPeerJoin(id);
+      };
+      conn.on("open", opened);
+      if (conn.open) opened();
+      const gone = () => {
+        if (this.conns.get(id) !== conn) return;
+        this.conns.delete(id);
+        this.onPeerLeave && this.onPeerLeave(id);
+      };
+      conn.on("close", gone);
+      conn.on("error", gone);
+    },
+
+    sendTo(id, msg) {
+      const c = this.conns.get(id);
+      if (!c || !c.open) return false;
+      try {
+        c.send(JSON.parse(JSON.stringify(msg)));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    },
+
+    // Host only: send to every guest except `except`
+    broadcast(msg, except) {
+      let clean;
+      try {
+        clean = JSON.parse(JSON.stringify(msg));
+      } catch (e) {
+        return false;
+      }
+      for (const [id, c] of this.conns) {
+        if (id === except || !c.open) continue;
+        try {
+          c.send(clean);
+        } catch (e) {}
+      }
+      return true;
+    },
+
     CODE_LEN,
     cleanCode,
 
-    createRoom(attempt) {
+    createRoom(attempt, multi) {
       attempt = attempt || 0;
       this.leave(false);
+      this.multi = !!multi;
+      this.myId = "host";
       this.role = "host";
       this.room = code();
       this.hostPeerId = null;
@@ -166,11 +250,12 @@
       }
       return new Promise((resolve, reject) => {
         let settled = false;
-        const peer = new Peer(hostIdFor(this.room), PEER_OPTS);
+        const peer = new Peer(hostIdFor(this.room, this.multi), PEER_OPTS);
         this.peer = peer;
 
         peer.on("open", (id) => {
           this.hostPeerId = id;
+          if (this.multi) this.connected = true;
           this.setStatus("waiting", "Share the invite link — keep this tab open");
           if (!settled) {
             settled = true;
@@ -179,6 +264,25 @@
         });
 
         peer.on("connection", (conn) => {
+          if (this.multi) {
+            if (this.conns.size >= MAX_GUESTS && !this.conns.has(conn.peer)) {
+              const full = () => {
+                try {
+                  conn.send({ t: "pkick", why: "full" });
+                } catch (e) {}
+                setTimeout(() => {
+                  try {
+                    conn.close();
+                  } catch (e) {}
+                }, 300);
+              };
+              if (conn.open) full();
+              else conn.on("open", full);
+              return;
+            }
+            this._wireGuest(conn);
+            return;
+          }
           if (this.connected && this.conn && this.conn.open) {
             try {
               conn.close();
@@ -201,7 +305,7 @@
           if (this.peer !== peer) return;
           if (!settled && e && e.type === "unavailable-id" && attempt < 5) {
             settled = true;
-            this.createRoom(attempt + 1).then(resolve, reject);
+            this.createRoom(attempt + 1, multi).then(resolve, reject);
             return;
           }
           const msg = (e && e.type) || (e && e.message) || "Host error";
@@ -230,6 +334,7 @@
       conn.on("open", () => {
         if (this.conn !== conn) return;
         this._retries = 0;
+        this.myId = peer.id;
         if (this._joinResolve) {
           const r = this._joinResolve;
           this._joinResolve = null;
@@ -298,13 +403,13 @@
       }, 900 + 700 * this._retries);
     },
 
-    joinCode(c) {
+    joinCode(c, multi) {
       c = cleanCode(c);
       if (c.length !== CODE_LEN) {
         this.setStatus("error", "Codes are " + CODE_LEN + " letters");
         return Promise.reject(new Error("bad code"));
       }
-      const p = this.joinRoom(c, hostIdFor(c));
+      const p = this.joinRoom(c, hostIdFor(c, multi), multi);
       this._byCode = true;
       this._clearJoinTimer();
       this._joinTimer = setTimeout(() => {
@@ -315,8 +420,9 @@
       return p;
     },
 
-    joinRoom(room, hostPeerId) {
+    joinRoom(room, hostPeerId, multi) {
       this.leave(false);
+      this.multi = !!multi;
       this._byCode = false;
       this.role = "guest";
       this.room = String(room || "")
@@ -381,6 +487,7 @@
     },
 
     send(msg) {
+      if (this.multi && this.role === "host") return this.broadcast(msg);
       if (!this.conn || !this.connected) return false;
       try {
         const clean = JSON.parse(JSON.stringify(msg));
@@ -407,19 +514,23 @@
       this.role = null;
       this.room = null;
       this.hostPeerId = null;
+      this.multi = false;
+      this.myId = null;
       this._retries = 0;
       if (resetStatus !== false) this.setStatus("idle", "");
     },
 
     parseInvite() {
       const q = new URLSearchParams(location.search);
-      const room = q.get("room") || q.get("join");
+      const lobby = q.get("lobby");
+      const room = lobby || q.get("room") || q.get("join");
       const host = q.get("host") || q.get("peer");
       if (!room && !host) return null;
       const r = room ? String(room).toUpperCase() : "";
       return {
         room: r,
-        host: host ? String(host).trim() : /^[A-Z]{5}$/.test(r) ? hostIdFor(r) : "",
+        multi: !!lobby,
+        host: host ? String(host).trim() : /^[A-Z]{5}$/.test(r) ? hostIdFor(r, !!lobby) : "",
       };
     },
   };

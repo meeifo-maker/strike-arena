@@ -77,6 +77,29 @@ body.play,body.play *{cursor:none!important}
 #lobby .join input:focus{border-color:var(--accent)}
 #lobby #lb-go{background:var(--accent);color:#111;border-color:var(--accent);font-size:16px}
 #lobby .st{min-height:1.4em;color:#ffb02e;font-weight:700}
+#party{position:fixed;inset:0;z-index:46;display:none;align-items:center;justify-content:center;background:rgba(5,7,10,.88);padding:24px;text-align:center}
+#party .card{width:min(640px,96vw);padding:26px 24px;background:rgba(8,10,14,.96);border:1px solid rgba(255,176,46,.45);border-radius:10px}
+#party h2{margin:0 0 6px;color:var(--accent);letter-spacing:2px}
+#party p{margin:8px 0;line-height:1.45;opacity:.9}
+#party .code{margin:10px auto 4px;font-size:44px;font-weight:800;letter-spacing:12px;padding-left:12px;color:var(--accent);font-family:Consolas,monospace;user-select:all}
+#party .code:empty,#party .link:empty{display:none}
+#party .link{word-break:break-all;font-size:13px;background:#151920;border:1px solid #444;border-radius:6px;padding:10px;margin:10px 0;user-select:all}
+#party .join{display:none;gap:8px;justify-content:center;margin:12px 0 6px}
+#party .join input{width:190px;padding:10px 12px;font-size:28px;font-weight:800;letter-spacing:8px;text-align:center;text-transform:uppercase;font-family:Consolas,monospace;background:#151920;color:#f2f2f2;border:1px solid #666;border-radius:6px;outline:none}
+#party .name input{width:220px;padding:8px 10px;font-size:15px;background:#151920;color:#f2f2f2;border:1px solid #555;border-radius:6px;outline:none;text-align:center}
+#party .teams{display:none;gap:12px;margin:14px 0 4px;text-align:left}
+#party .team{flex:1;min-height:150px;border-radius:8px;padding:10px 12px;background:#12161d;border:1px solid #333}
+#party .team.t{border-color:rgba(255,154,46,.6)}#party .team.ct{border-color:rgba(106,168,255,.6)}
+#party .team h3{margin:0 0 8px;font-size:15px;letter-spacing:1.5px}
+#party .team.t h3{color:#ff9a2e}#party .team.ct h3{color:#6aa8ff}
+#party .team div.pl{padding:5px 0;border-bottom:1px solid #222;font-weight:700}
+#party .team div.pl.me{color:#fff2c8}#party .team div.pl small{opacity:.6;font-weight:400}
+#party .team button{width:100%;margin-top:10px}
+#party .row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
+#party button{padding:10px 16px;font-size:14px;font-weight:700;border-radius:6px;border:1px solid #555;background:#2a2e36;color:#f2f2f2;cursor:pointer}
+#party button:disabled{opacity:.45;cursor:default}
+#party #pt-copy,#party #pt-start,#party #pt-go{background:var(--accent);color:#111;border-color:var(--accent)}
+#party .st{min-height:1.4em;color:#ffb02e;font-weight:700}
 </style></head><body>
 <div id="cross"><i class="h l"></i><i class="h r"></i><i class="v t"></i><i class="v b"></i></div>
 <div id="hit"></div><div id="dmg"></div><div id="fl"></div><div id="vig"></div><div id="scope"></div><div id="buy"></div><div id="bar"></div><div class="box" id="money">$800</div>
@@ -97,6 +120,8 @@ body.play,body.play *{cursor:none!important}
       <button id="mm-1v1" type="button">Play 1v1 (bot)</button>
       <button id="mm-online" type="button">Host 1v1 (code / link)</button>
       <button id="mm-join" type="button">Join by code</button>
+      <button id="mm-party" type="button">Create private lobby</button>
+      <button id="mm-pjoin" type="button">Join private lobby</button>
       <button id="mm-ctrl" type="button">Controls</button>
       <button id="mm-model" type="button">Load 3D Model</button>
     </div>
@@ -118,6 +143,26 @@ body.play,body.play *{cursor:none!important}
     </div>
   </div>
 </div>
+<div id="party">
+  <div class="card">
+    <h2>PRIVATE LOBBY</h2>
+    <p id="pt-role"></p>
+    <div class="code" id="pt-code"></div>
+    <div class="join" id="pt-join"><input id="pt-input" maxlength="5" autocomplete="off" spellcheck="false" placeholder="ABCDE"><button id="pt-go" type="button">Join</button></div>
+    <div class="name">Your name <input id="pt-name" maxlength="16" autocomplete="off" spellcheck="false"></div>
+    <div class="teams" id="pt-teams">
+      <div class="team t"><h3>TERRORISTS</h3><div id="pt-t"></div><button id="pt-jt" type="button">Join Terrorists</button></div>
+      <div class="team ct"><h3>COUNTER-TERRORISTS</h3><div id="pt-ct"></div><button id="pt-jct" type="button">Join Counter-Terrorists</button></div>
+    </div>
+    <p class="st" id="pt-status"></p>
+    <div class="link" id="pt-link"></div>
+    <div class="row">
+      <button id="pt-copy" type="button" style="display:none">Copy invite link</button>
+      <button id="pt-start" type="button" style="display:none">Start match</button>
+      <button id="pt-back" type="button">Leave</button>
+    </div>
+  </div>
+</div>
 <div id="relock"><b>Click to resume</b></div>
 <div id="ov" style="display:none"><h1>STRIKE: ARENA</h1>
 <p>You are a <b>Terrorist</b> (orange) with 4 bot teammates. Eliminate every <span style="color:#6aa8ff;font-weight:700">Counter-Terrorist</span> (blue) to win the round. Up to 8 rounds — first to 5 wins.</p>
@@ -131,6 +176,6 @@ body.play,body.play *{cursor:none!important}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<script src="netplay.js?v=peer8"></script>
+<script src="netplay.js?v=peer9"></script>
 <script src="mapworld.js?v=map1"></script>
-<script src="game.js?v=code9"></script></body></html>
+<script src="game.js?v=code10"></script></body></html>
