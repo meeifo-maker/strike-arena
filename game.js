@@ -124,7 +124,7 @@ const SKIN_CATS=[['Pistols',['glock','deagle']],['SMGs',['mp9']],['Rifles',['ak'
 // skin: {id,name,value, tint?:'#rrggbb', tex?:'assets/skins/....jpg'} — a skin with neither keeps the stock look
 // model: replaces the weapon's mesh (fix = extra hold rotation for that model)
 const SKINS={};for(const [,ids] of SKIN_CATS)for(const id of ids)SKINS[id]=[{id:'base',name:'Base',value:0}];
-SKINS.knife.push({id:'scary',name:'Scary Knife',value:300,model:'assets/skins/knife-scary.glb',fix:{rz:Math.PI/2,z:-.14,y:-.035}});
+SKINS.knife.push({id:'scary',name:'Scary Knife',value:300,model:'assets/skins/knife-scary.glb',fix:{rz:Math.PI/2,z:-.11,y:-.035}});
 const SKIN_TPL={},skinLoading={};
 function skinModel(id){const k=skinDef(id,vmSkin(id));if(!k||!k.model)return null;if(SKIN_TPL[k.model])return SKIN_TPL[k.model];
   if(!skinLoading[k.model]&&THREE.GLTFLoader){skinLoading[k.model]=1;fetch(k.model).then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(parseGlb).then(g=>{SKIN_TPL[k.model]=prepareWeapon(g.scene,WEAPON_FILES[id]?WEAPON_FILES[id].kind:'knife',id);if(vmId()===id)buildModel(id)}).catch(e=>{console.warn('skin load failed',k.model,e);skinLoading[k.model]=0})}return null}
@@ -208,7 +208,7 @@ rifle:{L:{mag:1,at:[0,-.06,-.02],up:[0,.88,.47],p:[1,0,0]}},
 sniper:{L:{at:[0,.01,-.16],f:[.55,.25,-.8],p:[-.2,1,0]}},
 nade:{R:{at:[0,-.01,.02],f:[-.1,.3,-.95],p:[-1,0,0]}},
 // knife: blade swung up-left, right fist round the handle, open left hand low on the left of the screen
-knife:{R:{at:[0,0,.1],f:[.7,.7,0],p:[1,-1,0]},O:{cam:1,at:[-.19,-.16,-.27],f:[.3,.9,-.3],p:[.5,0,-.8]}}};
+knife:{K:{at:[0,0,.1],f:[.7,.7,0],p:[1,-1,0]},O:{cam:1,at:[-.19,-.16,-.27],f:[.3,.9,-.3],p:[.5,0,-.8]}}};
 // knuckle line height, finger centre-line x and curl radius, in the model's rest-pose units
 const ARM_SCALE=.42,ARM_KN=.285,ARM_FX=.025,ARM_CR=.075;
 let gloveTpl=null,gloveState='idle',viewGlove=null;
@@ -220,13 +220,13 @@ const geo=src.geometry.clone();geo.applyMatrix4(src.matrixWorld);
 const pos=geo.attributes.position,idx=geo.index?geo.index.array:null,tri=idx?idx.length/3:pos.count/3;
 const root=new THREE.Group();root.name='arms';root.userData={viewHands:true,arms:{},cat:null};
 // rest pose: right arm on -Z, left arm on +Z, fingers along +Y, palms facing -X
-// O = open left hand (fingers straight, thumb kept) for poses where it isn't gripping anything
-for(const s of ['R','L','O']){const keep=[],side=s==='O'?'L':s,open=s==='O';
+// O = open left hand (fingers straight, thumb kept) for poses where it isn't gripping anything; K = right fist that keeps its thumb, for thin knife handles
+for(const s of ['R','L','O','K']){const keep=[],side=s==='O'?'L':s==='K'?'R':s,open=s==='O';
 for(let t=0;t<tri;t++){const a=idx?idx[t*3]:t*3,b=idx?idx[t*3+1]:t*3+1,c=idx?idx[t*3+2]:t*3+2;if((pos.getZ(a)+pos.getZ(b)+pos.getZ(c)<0)===(side==='R'))keep.push(a,b,c)}
 let cz=0,n=0;for(const i of keep)if(pos.getY(i)>ARM_KN){cz+=pos.getZ(i);n++}cz/=n||1;
 // drop the thumb: it can't bend, and in every grip it pokes through the gun
 const sg=side==='R'?1:-1,thumb=i=>{const y=pos.getY(i);return y>.08&&y<.34&&(pos.getZ(i)-cz)*sg>.13},hand=[];
-for(let t=0;t<keep.length;t+=3)if(open||!thumb(keep[t])&&!thumb(keep[t+1])&&!thumb(keep[t+2]))hand.push(keep[t],keep[t+1],keep[t+2]);
+for(let t=0;t<keep.length;t+=3)if(open||s==='K'||!thumb(keep[t])&&!thumb(keep[t+1])&&!thumb(keep[t+2]))hand.push(keep[t],keep[t+1],keep[t+2]);
 const g=geo.clone();stretchSleeve(g);if(!open)curlFingers(g);g.setIndex(hand);g.translate(-(ARM_FX-ARM_CR),-ARM_KN,-cz);
 const mesh=new THREE.Mesh(g,src.material);mesh.frustumCulled=false;mesh.renderOrder=6;mesh.scale.setScalar(ARM_SCALE);
 const pivot=new THREE.Group();pivot.add(mesh);root.add(pivot);root.userData.arms[s]=pivot}
@@ -258,8 +258,8 @@ awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]}},
 // right hand on the magazine grip, left on the front vertical grip
 mp9:{R:{at:[0,-.045,-.05],f:[-.1,.4,-.9],p:[-1,0,0]},L:{at:[0,-.01,-.168],f:[.35,.35,-.87],p:[1,0,.4]}}};
 function poseArms(cat){if(!viewGlove)return;const u=viewGlove.userData,key=cat+':'+vmId();if(u.cat===key)return;u.cat=key;
-const B=ARM_POSE[cat]||ARM_POSE.rifle,X=ARM_WPN[vmId()]||{},P={};for(const s of ['L','R','O'])if(X[s]!==null&&(B[s]||X[s]))P[s]=Object.assign({},B[s],X[s]);
-for(const s of ['L','R','O']){const pv=u.arms[s],c=P[s];if(!pv)continue;pv.visible=!!c;if(!c)continue;
+const B=ARM_POSE[cat]||ARM_POSE.rifle,X=ARM_WPN[vmId()]||{},P={};for(const s of ['L','R','O','K'])if(X[s]!==null&&(B[s]||X[s]))P[s]=Object.assign({},B[s],X[s]);
+for(const s of ['L','R','O','K']){const pv=u.arms[s],c=P[s];if(!pv)continue;pv.visible=!!c;if(!c)continue;
 // cam: at/f/p are in camera space (screen-anchored), so undo the gun's rest pose
 if(c.cam){const vp=VIEW_POSE[cat]||VIEW_POSE.rifle,q=new THREE.Quaternion().setFromEuler(new THREE.Euler(vp.tip||0,vp.ry||0,vp.rz||0)).invert(),
 o=new THREE.Vector3(vp.gx,vp.gy-(VM_DROP[cat]||0),vp.gz+(VIEW_Z[vmId()]||0)).multiplyScalar(1/(VM_ZOOM[cat]||1));
