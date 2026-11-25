@@ -130,7 +130,8 @@ function skinModel(id){const k=skinDef(id,vmSkin(id));if(!k||!k.model)return nul
   if(!skinLoading[k.model]&&THREE.GLTFLoader){skinLoading[k.model]=1;fetch(k.model).then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(parseGlb).then(g=>{SKIN_TPL[k.model]=prepareWeapon(g.scene,WEAPON_FILES[id]?WEAPON_FILES[id].kind:'knife',id);if(vmId()===id)buildModel(id)}).catch(e=>{console.warn('skin load failed',k.model,e);skinLoading[k.model]=0})}return null}
 const COIN={kill:2,round:5,match:100};
 let prof={coins:0,owned:{},eq:{}};try{const p=JSON.parse(localStorage.getItem('strikeProfile')||'null');if(p&&typeof p==='object')prof=Object.assign(prof,p)}catch(e){}
-function saveProf(){try{localStorage.setItem('strikeProfile',JSON.stringify(prof))}catch(e){}}
+const profKey=()=>'strikeProfile'+(typeof ACC!=='undefined'&&ACC.user?':'+ACC.user.uid:'');
+function saveProf(){try{localStorage.setItem(profKey(),JSON.stringify(prof))}catch(e){}if(typeof cloudSave==='function')cloudSave()}
 function skinDef(wid,sid){const l=SKINS[wid];return l?(l.find(k=>k.id===sid)||l[0]):null}
 function ownsSkin(wid,sid){const k=SKINS[wid]&&SKINS[wid].find(q=>q.id===sid);return !!k&&(k.value<=0||!!prof.owned[wid+':'+sid])}
 function eqSkin(wid){const sid=prof.eq[wid];return sid&&ownsSkin(wid,sid)?sid:'base'}
@@ -604,6 +605,43 @@ function renderSkins(){updCoins();const cats=$('sk-cats'),list=$('sk-list');if(!
 function mmTab(t){document.querySelectorAll('#mm nav button[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));document.querySelectorAll('#mm .tab').forEach(x=>x.classList.toggle('on',x.id==='tab-'+t));if(t==='skins')renderSkins()}
 document.querySelectorAll('#mm nav button[data-tab]').forEach(b=>b.onclick=()=>mmTab(b.dataset.tab));
 updCoins();
+// ---------- Google sign-in: each account's coins + skins live in Realtime Database at /users/<uid> ----------
+const FB_CFG={apiKey:'AIzaSyCX4y4YmsgxfgwLIvwxd9Vj7jaIedqx_c0',authDomain:'strike-arena-ethan.firebaseapp.com',databaseURL:'https://strike-arena-ethan-default-rtdb.europe-west1.firebasedatabase.app',projectId:'strike-arena-ethan',appId:'1:577505418950:web:e46a6d3f6c8f5ffdc381c7'};
+const acEsc=t=>String(t).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+const ACC={user:null,ref:null,state:'loading',saveT:0,synced:false};
+function loadScript(src){return new Promise((res,rej)=>{const e=document.createElement('script');e.src=src;e.onload=res;e.onerror=()=>rej(new Error('failed to load '+src));document.head.appendChild(e)})}
+let fbP=null;
+function fbLoad(){if(fbP)return fbP;const b='https://www.gstatic.com/firebasejs/10.14.1/';
+  fbP=loadScript(b+'firebase-app-compat.js').then(()=>Promise.all([loadScript(b+'firebase-auth-compat.js'),loadScript(b+'firebase-database-compat.js')])).then(()=>{if(!firebase.apps.length)firebase.initializeApp(FB_CFG);return firebase});
+  fbP.catch(()=>{fbP=null});return fbP}
+function normProf(p){p=p&&typeof p==='object'?p:{};return{coins:Math.max(0,Math.floor(+p.coins||0)),owned:p.owned&&typeof p.owned==='object'?p.owned:{},eq:p.eq&&typeof p.eq==='object'?p.eq:{},updated:+p.updated||0}}
+function readLocal(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch(e){return null}}
+function cloudSave(){if(!ACC.user||!ACC.ref||!ACC.synced)return;clearTimeout(ACC.saveT);ACC.saveT=setTimeout(()=>{prof.updated=Date.now();
+  const data={coins:Math.max(0,Math.floor(prof.coins)),owned:prof.owned,eq:prof.eq,updated:prof.updated};try{localStorage.setItem(profKey(),JSON.stringify(prof))}catch(e){}
+  ACC.ref.set(data).then(()=>{ACC.state='saved';renderAcct()}).catch(e=>{console.warn('cloud save failed',e);ACC.state='error';renderAcct()})},800)}
+function profChanged(){updCoins();if($('tab-skins')&&$('tab-skins').classList.contains('on'))renderSkins();if(gun.visible||state==='play')buildModel(vmId())}
+function onAuth(user){ACC.user=user||null;ACC.ref=null;ACC.synced=false;
+  if(!user){prof=normProf(readLocal('strikeProfile'));ACC.state='out';renderAcct();profChanged();return}
+  ACC.state='syncing';renderAcct();
+  const key='strikeProfile:'+user.uid,cache=readLocal(key);ACC.ref=firebase.database().ref('users/'+user.uid);
+  ACC.ref.get().then(snap=>{if(ACC.user!==user)return;
+    if(snap.exists()){const cloud=normProf(snap.val()),c=cache&&normProf(cache);prof=c&&c.updated>cloud.updated?c:cloud}
+    else prof=normProf(cache||readLocal('strikeProfile'));
+    ACC.synced=true;saveProf();profChanged();ACC.state='saved';renderAcct();
+    const nm=$('pt-name');if(nm&&(!nm.value||/^Player( \d+)?$/.test(nm.value)))nm.value=(user.displayName||'').split(' ')[0].slice(0,16)||nm.value;
+  }).catch(e=>{console.warn('profile load failed',e);if(ACC.user!==user)return;prof=normProf(cache||readLocal('strikeProfile'));ACC.synced=true;profChanged();ACC.state='error';renderAcct()})}
+const G_ICON='<svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.2l7.8 6C12.3 13.4 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17z"/><path fill="#FBBC05" d="M10.4 28.8c-.5-1.4-.8-3-.8-4.8s.3-3.3.8-4.8l-7.8-6C.9 16.5 0 20.1 0 24s.9 7.5 2.6 10.8l7.8-6z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.7-3.9-13.6-9.5l-7.8 6C6.6 42.6 14.6 48 24 48z"/></svg>';
+function renderAcct(){const el=$('mm-acct');if(!el)return;const u=ACC.user;
+  if(!u){el.innerHTML='<button type="button" id="mm-signin"'+(ACC.state==='loading'?' disabled':'')+'>'+G_ICON+(ACC.state==='unavailable'?'Sign-in unavailable':'Sign in with Google')+'</button>';
+    el.title='Sign in to save your coins and skins to your Google account';const b=$('mm-signin');if(b)b.onclick=signIn;return}
+  const sv={syncing:'Syncing…',saved:'Saved to account',error:'Not saved — offline?'}[ACC.state]||'';
+  el.innerHTML=(u.photoURL?'<img alt="" referrerpolicy="no-referrer" src="'+acEsc(u.photoURL)+'">':'')+'<div><div class="nm">'+acEsc(u.displayName||u.email||'Player')+'</div><div class="sv">'+sv+'</div></div><button type="button" class="out" id="mm-signout">Sign out</button>';
+  el.title=u.email||'';$('mm-signout').onclick=()=>{clearTimeout(ACC.saveT);firebase.auth().signOut()}}
+function signIn(){const b=$('mm-signin');if(b)b.disabled=true;
+  fbLoad().then(fb=>{const pr=new fb.auth.GoogleAuthProvider();return fb.auth().signInWithPopup(pr).catch(e=>{if(e&&e.code==='auth/popup-blocked')return fb.auth().signInWithRedirect(pr);throw e})})
+  .catch(e=>{console.warn('sign-in failed',e);if(e&&e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request')feed('Sign-in failed: '+((e&&e.message)||'try again'));renderAcct()})}
+renderAcct();
+fbLoad().then(fb=>{fb.auth().onAuthStateChanged(onAuth)}).catch(e=>{console.warn('Firebase unavailable',e);ACC.state='unavailable';renderAcct()});
 
 // mode: true = host, false = joining from an invite link, 'code' = type in a friend's room code
 function showLobby(mode){

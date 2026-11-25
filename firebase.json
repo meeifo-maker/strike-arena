@@ -35,7 +35,12 @@
   },
   "auth": {
     "providers": {
-      "anonymous": true
-    }
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Strike Arena",
+        "supportEmail": "meeifo@gmail.com",
+        "authorizedRedirectUris": ["https://meeifo-maker.github.io", "http://localhost"]
+      }
+    },
+    "authorizedDomains": ["localhost", "strike-arena-ethan.firebaseapp.com", "strike-arena-ethan.web.app", "meeifo-maker.github.io"]
   }
 }

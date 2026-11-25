@@ -1,15 +1,15 @@
 {
   "rules": {
-    "rooms": {
-      "$roomId": {
-        ".read": true,
-        ".write": true,
-        ".validate": "newData.hasChildren() || data.exists()",
-        "players": {
-          "$uid": {
-            ".validate": "newData.hasChildren(['x', 'z', 'yaw', 'hp', 'alive', 'team'])"
-          }
-        }
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['coins'])",
+        "coins": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000 && newData.val() % 1 === 0" },
+        "owned": { "$skin": { ".validate": "$skin.length < 64 && newData.isNumber()" } },
+        "eq": { "$wpn": { ".validate": "$wpn.length < 32 && newData.isString() && newData.val().length < 32" } },
+        "updated": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
       }
     }
   }
