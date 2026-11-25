@@ -123,9 +123,10 @@ awp:{n:'AWP',price:4750,slot:1,mag:5,res:30,rate:1.46,auto:false,dmg:115,base:.0
 // ---------- Skins + coins. Coins are only earned in offline bot matches; equipped skins are sent to online opponents ----------
 const SKIN_CATS=[['Pistols',['glock','deagle']],['SMGs',['mp9']],['Rifles',['ak','m4']],['Snipers',['awp']],['Knives',['knife']]];
 // skin: {id,name,value, tint?:'#rrggbb', metal?, rough?, tex?:'assets/skins/....jpg'} — a skin with neither keeps the stock look
-// model: replaces the weapon's mesh (fix = extra hold rotation for that model)
+// model: replaces the weapon's mesh (fix = extra hold rotation/offset for that model, s = scale; model must be centred on its origin)
 const SKINS={};for(const [,ids] of SKIN_CATS)for(const id of ids)SKINS[id]=[{id:'base',name:'Base',value:0}];
 SKINS.knife.push({id:'scary',name:'Scary Knife',value:300,model:'assets/skins/knife-scary.glb?v=3',fix:{rz:Math.PI/2,z:-.125,y:-.035}});
+SKINS.glock.push({id:'usp-printstream',name:'USP-S Printstream',value:200,model:'assets/skins/usp-printstream.glb?v=1',fix:{s:1.8,z:-.08}});
 SKINS.deagle.push({id:'printstream',name:'Printstream',value:250,model:'assets/skins/deagle-printstream.glb?v=1',fix:{y:.012}});
 SKINS.m4.push({id:'printstream',name:'Printstream',value:350,model:'assets/skins/m4-printstream.glb?v=1'});
 // Emotes: pose(t) gives wrist targets h, elbow pole p and palm direction in rig space (+X right, +Y up, −Z forward), c = finger curl
@@ -187,7 +188,7 @@ const WEAPON_FIX={glock:{rx:0,ry:0,rz:0},deagle:{rx:0,ry:0,rz:0},mp9:{rx:0,ry:0,
 function placeLoadedWeapon(id){const sk=skinDef(id,vmSkin(id)),tpl=skinModel(id)||WEAPON_TPL[id];if(!tpl)return false;const w=cloneWeapon(tpl);
 const want={ak:.6,m4:.6,awp:.7,mp9:.42,deagle:.2,glock:.18,he:.1,flash:.1,smoke:.1,knife:.3}[id]||.36;
 const base=tpl.userData.lenZ||.5;w.scale.multiplyScalar(want/base);
-const f=(tpl!==WEAPON_TPL[id]&&sk&&sk.fix)||WEAPON_FIX[id]||{};const hold=new THREE.Group();hold.add(w);
+const f=(tpl!==WEAPON_TPL[id]&&sk&&sk.fix)||WEAPON_FIX[id]||{};if(f.s)w.scale.multiplyScalar(f.s);const hold=new THREE.Group();hold.add(w);
 const cat=viewCat(id),vp=VIEW_POSE[cat]||VIEW_POSE.rifle;
 hold.rotation.set(f.rx||0,f.ry||0,f.rz||0);
 const off=vp.hold||[0,0,0];hold.position.set(off[0],off[1],off[2]);hold.position.x+=f.x||0;hold.position.y+=f.y||0;hold.position.z+=f.z||0;
