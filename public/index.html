@@ -52,15 +52,43 @@ body.play,body.play *{cursor:none!important}
 #ov h1{font-size:44px;margin:0 0 8px;color:var(--accent);letter-spacing:2px}
 #ov p{margin:4px 0;opacity:.9;max-width:520px;line-height:1.5}
 #ov b{color:var(--accent)}
-#mm{position:fixed;inset:0;z-index:45;display:flex;align-items:center;justify-content:center;background:rgba(5,7,10,.82);text-align:center;padding:24px}
-#mm .card{width:min(420px,92vw);padding:36px 28px 32px;background:rgba(8,10,14,.92);border:1px solid rgba(255,176,46,.45);border-radius:10px}
-#mm .eye{margin:0 0 10px;font-size:12px;letter-spacing:3px;opacity:.55;text-transform:uppercase}
-#mm h1{margin:0 0 8px;font-size:clamp(34px,7vw,48px);color:var(--accent);letter-spacing:3px}
-#mm .tag{margin:0 0 26px;opacity:.8;line-height:1.45}
-#mm .acts{display:flex;flex-direction:column;gap:10px}
-#mm .acts button{padding:14px 18px;font-size:16px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;border-radius:6px;border:1px solid #555;background:#2a2e36;color:#f2f2f2;cursor:pointer}
-#mm .acts #mm-play{background:var(--accent);color:#111;border-color:var(--accent)}
-#mm .acts button:hover{filter:brightness(1.08)}
+#mm{position:fixed;inset:0;z-index:45;display:flex;flex-direction:column;background:radial-gradient(ellipse at 70% 20%,rgba(46,54,68,.6),rgba(5,7,10,.95) 70%),rgba(5,7,10,.85);text-align:left}
+#mm .top{flex:none;display:flex;align-items:center;gap:clamp(10px,3vw,40px);height:60px;padding:0 clamp(12px,3vw,40px);background:rgba(8,10,14,.9);border-bottom:1px solid rgba(255,255,255,.08)}
+#mm .logo{font-weight:900;font-size:clamp(16px,2.2vw,22px);letter-spacing:3px;color:var(--accent);white-space:nowrap}
+#mm .logo span{color:#fff}
+#mm nav{display:flex;height:100%}
+#mm nav button{height:100%;padding:0 clamp(8px,1.6vw,22px);background:none;border:0;border-bottom:3px solid transparent;color:#aeb4bd;font-size:13px;font-weight:800;letter-spacing:2px;text-transform:uppercase;cursor:pointer}
+#mm nav button.on,#mm nav button:hover{color:#fff;border-bottom-color:var(--accent)}
+#mm .coins{margin-left:auto;display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:18px;background:rgba(255,255,255,.07);font-size:14px;white-space:nowrap}
+#mm .coins b{font-size:16px;color:#ffd257}
+.coin{display:inline-block;width:1em;height:1em;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff0a8,#f0b323 55%,#9c6200);box-shadow:inset 0 0 0 1.5px rgba(110,60,0,.55);vertical-align:-.14em}
+#mm .body{flex:1;min-height:0;overflow:auto;padding:clamp(14px,3vw,36px)}
+#mm .tab{display:none;max-width:1100px;margin:0 auto}#mm .tab.on{display:block}
+#mm h3{margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase;opacity:.55}
+#mm .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:26px}
+#mm .tile{display:flex;flex-direction:column;justify-content:flex-end;gap:4px;min-height:92px;padding:14px 16px;text-align:left;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,.02));color:#f2f2f2;cursor:pointer;transition:border-color .12s,transform .12s}
+#mm .tile b{font-size:16px;letter-spacing:1px;text-transform:uppercase}
+#mm .tile small{font-size:12.5px;opacity:.65;line-height:1.35}
+#mm .tile:hover{border-color:var(--accent);transform:translateY(-1px)}
+#mm .tile.main{background:linear-gradient(160deg,#ffbe4a,#d98a12);color:#14100a;border-color:#ffb02e}
+#mm .tile.main small{opacity:.8}
+#mm .sk-wrap{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+#mm .sk-cats{display:flex;flex-direction:column;gap:6px;width:170px;flex:none}
+#mm .sk-cats button{padding:11px 14px;text-align:left;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:#c9ced6;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;font-size:13px;cursor:pointer}
+#mm .sk-cats button.on,#mm .sk-cats button:hover{color:#fff;border-color:var(--accent);background:rgba(255,176,46,.12)}
+#mm .sk-list{flex:1;min-width:260px}
+#mm .sk-wpn{margin-bottom:22px}
+#mm .sk-wpn h4{margin:0 0 10px;font-size:18px;letter-spacing:1px}
+#mm .sk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+#mm .sk-card{border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);overflow:hidden}
+#mm .sk-card.eq{border-color:var(--accent)}
+#mm .sk-prev{height:86px;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#2b3240,#161a22);font-weight:900;font-size:20px;letter-spacing:2px;color:rgba(255,255,255,.25);border-bottom:3px solid #8a93a3}
+#mm .sk-info{padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+#mm .sk-info b{font-size:15px}
+#mm .sk-info span{font-size:13px;opacity:.8}
+#mm .sk-info button{margin-top:2px;padding:8px;border-radius:5px;border:1px solid #555;background:#2a2e36;color:#f2f2f2;font-weight:800;letter-spacing:1px;text-transform:uppercase;font-size:12px;cursor:pointer}
+#mm .sk-info button.buy{background:var(--accent);color:#111;border-color:var(--accent)}
+#mm .sk-info button:disabled{opacity:.5;cursor:default}
 #ov-back{margin-top:18px;padding:8px 16px;font-size:14px;font-weight:700;background:#2a2e36;color:#f2f2f2;border:1px solid #555;border-radius:6px;cursor:pointer;pointer-events:auto}
 #lobby{position:fixed;inset:0;z-index:46;display:none;align-items:center;justify-content:center;background:rgba(5,7,10,.88);padding:24px;text-align:center}
 #lobby .card{width:min(460px,94vw);padding:28px 24px;background:rgba(8,10,14,.96);border:1px solid rgba(255,176,46,.45);border-radius:10px}
@@ -110,21 +138,38 @@ body.play,body.play *{cursor:none!important}
 <div class="box" id="feed"></div>
 <div id="winban"><span></span></div>
 <div id="mm">
-  <div class="card">
-    <p class="eye">Browser FPS</p>
-    <h1>STRIKE: ARENA</h1>
-    <p class="tag">Bot match · invite a friend for online 1v1</p>
-    <div class="acts">
-      <button id="mm-map" type="button">Map: Mirage</button>
-      <button id="mm-play" type="button">Play 5v5</button>
-      <button id="mm-1v1" type="button">Play 1v1 (bot)</button>
-      <button id="mm-online" type="button">Host 1v1 (code / link)</button>
-      <button id="mm-join" type="button">Join by code</button>
-      <button id="mm-party" type="button">Create private lobby</button>
-      <button id="mm-pjoin" type="button">Join private lobby</button>
-      <button id="mm-ctrl" type="button">Controls</button>
-      <button id="mm-model" type="button">Load 3D Model</button>
-    </div>
+  <div class="top">
+    <div class="logo">STRIKE<span>:</span> ARENA</div>
+    <nav>
+      <button type="button" class="on" data-tab="play">Play</button>
+      <button type="button" data-tab="skins">Skins</button>
+      <button type="button" id="mm-ctrl">Settings</button>
+    </nav>
+    <div class="coins" title="Earn coins in bot matches: kills, round wins and match wins">Coins: <b id="mm-coins">0</b> <i class="coin"></i></div>
+  </div>
+  <div class="body">
+    <section class="tab on" id="tab-play">
+      <h3>Offline · vs bots</h3>
+      <div class="grid">
+        <button id="mm-play" class="tile main" type="button"><b>Play 5v5</b><small>You + 4 bots vs bots · earns coins</small></button>
+        <button id="mm-1v1" class="tile" type="button"><b>Play 1v1</b><small>Duel one bot · earns coins</small></button>
+        <button id="mm-map" class="tile" type="button"><b>Map: Mirage</b><small>Click to change map</small></button>
+      </div>
+      <h3>Online · with friends</h3>
+      <div class="grid">
+        <button id="mm-party" class="tile" type="button"><b>Create private lobby</b><small>Up to 10 players · pick teams · no bots</small></button>
+        <button id="mm-pjoin" class="tile" type="button"><b>Join private lobby</b><small>Enter a lobby code</small></button>
+        <button id="mm-online" class="tile" type="button"><b>Host 1v1</b><small>Get a code or invite link</small></button>
+        <button id="mm-join" class="tile" type="button"><b>Join 1v1</b><small>Enter a room code</small></button>
+      </div>
+      <h3>Extras</h3>
+      <div class="grid">
+        <button id="mm-model" class="tile" type="button"><b>Load 3D model</b><small>Use your own weapon model</small></button>
+      </div>
+    </section>
+    <section class="tab" id="tab-skins">
+      <div class="sk-wrap"><div class="sk-cats" id="sk-cats"></div><div class="sk-list" id="sk-list"></div></div>
+    </section>
   </div>
 </div>
 <div id="lobby">
@@ -178,4 +223,4 @@ body.play,body.play *{cursor:none!important}
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="netplay.js?v=peer9"></script>
 <script src="mapworld.js?v=map1"></script>
-<script src="game.js?v=code13"></script></body></html>
+<script src="game.js?v=code14"></script></body></html>

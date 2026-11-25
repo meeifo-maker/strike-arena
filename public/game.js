@@ -119,6 +119,29 @@ mp9:{n:'MP9',price:1250,slot:1,mag:30,res:120,rate:.07,auto:true,dmg:26,base:.00
 m4:{n:'M4A1-S',price:2900,slot:1,mag:20,res:80,rate:.1,auto:true,dmg:33,base:.0015,mv:.03,rs:.0024,sc:12,kick:.8,vk:.45,rl:2.3,spd:.95,kill:300},
 ak:{n:'AK-47',price:2700,slot:1,mag:30,res:90,rate:.1,auto:true,dmg:36,base:.0015,mv:.035,rs:.0034,sc:12,kick:1.1,vk:.6,rl:2.4,spd:.92,kill:300},
 awp:{n:'AWP',price:4750,slot:1,mag:5,res:30,rate:1.46,auto:false,dmg:115,base:.0002,mv:.07,rs:0,sc:1,kick:5,vk:2.2,rl:3.2,spd:.8,scope:true,kill:100}};
+// ---------- Skins + coins. Coins are only earned in offline bot matches; equipped skins are sent to online opponents ----------
+const SKIN_CATS=[['Pistols',['glock','deagle']],['SMGs',['mp9']],['Rifles',['ak','m4']],['Snipers',['awp']],['Knives',['knife']]];
+// skin: {id,name,value, tint?:'#rrggbb', tex?:'assets/skins/....jpg'} — a skin with neither keeps the stock look
+const SKINS={};for(const [,ids] of SKIN_CATS)for(const id of ids)SKINS[id]=[{id:'base',name:'Base',value:0}];
+const COIN={kill:2,round:5,match:100};
+let prof={coins:0,owned:{},eq:{}};try{const p=JSON.parse(localStorage.getItem('strikeProfile')||'null');if(p&&typeof p==='object')prof=Object.assign(prof,p)}catch(e){}
+function saveProf(){try{localStorage.setItem('strikeProfile',JSON.stringify(prof))}catch(e){}}
+function skinDef(wid,sid){const l=SKINS[wid];return l?(l.find(k=>k.id===sid)||l[0]):null}
+function ownsSkin(wid,sid){const k=SKINS[wid]&&SKINS[wid].find(q=>q.id===sid);return !!k&&(k.value<=0||!!prof.owned[wid+':'+sid])}
+function eqSkin(wid){const sid=prof.eq[wid];return sid&&ownsSkin(wid,sid)?sid:'base'}
+function earnsCoins(){return !online&&!party}
+function addCoins(n){if(!earnsCoins()||!n)return;prof.coins+=n;saveProf();updCoins()}
+function updCoins(){const e=document.getElementById('mm-coins');if(e)e.textContent=prof.coins}
+const skinTexCache={};
+function skinTex(url){if(!skinTexCache[url]){const t=new THREE.TextureLoader().load(url);if(THREE.SRGBColorSpace)t.colorSpace=THREE.SRGBColorSpace;t.flipY=false;skinTexCache[url]=t}return skinTexCache[url]}
+function applySkin(root,wid,sid){if(!root)return;const k=skinDef(wid,sid),skip=[viewGlove,viewHandsRoot,viewHandPlate,flash].filter(Boolean);
+const walk=o=>{if(skip.includes(o))return;
+  if(o.isMesh){if(o.userData.baseMat===undefined)o.userData.baseMat=o.material;
+    if(!k||(!k.tint&&!k.tex))o.material=o.userData.baseMat;
+    else{const b=Array.isArray(o.userData.baseMat)?o.userData.baseMat[0]:o.userData.baseMat,m=b.clone();if(k.tint)m.color=new THREE.Color(k.tint);if(k.tex){m.map=skinTex(k.tex);m.needsUpdate=true}o.material=m}}
+  for(const c of o.children)walk(c)};walk(root)}
+function vmSkin(id){if(specId)return specBot&&specBot.st&&specBot.st.w===id&&specBot.st.sk||'base';return eqSkin(id)}
+function applyRemoteSkin(b,r){const u=b.g&&b.g.userData;if(!u||!u.gun)return;const gw=b.team==='t'?'ak':'m4',sid=r.w===gw&&r.sk?r.sk:'base',key=u.gun.uuid+':'+sid;if(b.skKey===key)return;b.skKey=key;applySkin(u.gun,gw,sid)}
 let custom=null,cfgM={id:'ak',size:1,rot:0,x:0,y:0,z:-.1},nades={he:1,flash:1,smoke:1},cur='glock',scoped=false,crouch=false,semiLock=false,armor=0,money=800,wins=0,loses=0,lossStreak=0,freezeT=0,buyT=0,buyOpen=false,inv={glock:{ammo:20,reserve:120}},roundKills=0;
 function fitWeaponToBox(obj,want){obj.position.set(0,0,0);obj.rotation.set(0,0,0);obj.quaternion.identity();obj.scale.set(1,1,1);obj.updateMatrixWorld(true);
 const recenter=()=>{obj.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(obj);obj.position.sub(b.getCenter(new THREE.Vector3()));obj.updateMatrixWorld(true)};
@@ -261,7 +284,8 @@ plate.position.set(vp.hx??.1,vp.hy??-.5,vp.hz??-.42);
 plate.frustumCulled=false;plate.renderOrder=vp.over?10:2;viewHandsRoot.add(plate);viewHandPlate=plate;
 if(gun){gun.traverse(o=>{if(o.isMesh&&!o.userData.viewHands){o.renderOrder=6;if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];for(const m of ms){m.depthTest=true;m.depthWrite=true;m.transparent=false}}}});gun.userData.viewCat=cat}
 window.__vh={cat,key,pos:plate.position.toArray(),size:[vp.psx,vp.psy]}}catch(err){console.warn('viewHands failed',err)}}
-function buildModel(id){while(gun.children.length)gun.remove(gun.children[0]);gun.userData.loaded=false;if(custom&&cfgM.id===id){gun.add(custom.root);gun.add(flash);placeCustom();scoped=false;mountViewHands();return}if(placeLoadedWeapon(id)){scoped=false;mountViewHands();return}const BD={ak:buildAK,m4:buildM4,glock:buildGlock2,deagle:buildDeagle2,mp9:buildMP9,awp:buildAWP,knife:buildKnife,he:()=>buildNade2('he'),flash:()=>buildNade2('flash'),smoke:()=>buildNade2('smoke')};scoped=false;if(BD[id])BD[id]();mountViewHands()}
+function buildModel(id){buildModelRaw(id);applySkin(gun,id,vmSkin(id))}
+function buildModelRaw(id){while(gun.children.length)gun.remove(gun.children[0]);gun.userData.loaded=false;if(custom&&cfgM.id===id){gun.add(custom.root);gun.add(flash);placeCustom();scoped=false;mountViewHands();return}if(placeLoadedWeapon(id)){scoped=false;mountViewHands();return}const BD={ak:buildAK,m4:buildM4,glock:buildGlock2,deagle:buildDeagle2,mp9:buildMP9,awp:buildAWP,knife:buildKnife,he:()=>buildNade2('he'),flash:()=>buildNade2('flash'),smoke:()=>buildNade2('smoke')};scoped=false;if(BD[id])BD[id]();mountViewHands()}
 function setWeapon(id){if(inv[cur]){inv[cur].ammo=ammo;inv[cur].reserve=reserve}cur=id;inspT=0;swing=null;ammo=inv[id].ammo;reserve=inv[id].reserve;reloading=0;buildModel(id);updHud()}
 function cycleWeapons(dir){const owned=[];for(const k of Object.keys(W)){if(!inv[k])continue;if(W[k].nade&&(!(k in nades)||nades[k]<=0))continue;owned.push(k)}owned.sort((a,b)=>(W[a].slot-W[b].slot)||a.localeCompare(b));if(owned.length<2)return;let i=owned.indexOf(cur);if(i<0)i=0;const n=owned[(i+dir+owned.length*10)%owned.length];if(n!==cur)setWeapon(n)}
 function grainTex(){const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');x.fillStyle='#7a4220';x.fillRect(0,0,256,256);
@@ -551,7 +575,7 @@ function briefingHtml(){const mode=gameMode==='online'
 :`<p>You are a <b>Terrorist</b> (orange) with 4 bot teammates. Eliminate every <span style="color:#6aa8ff;font-weight:700">Counter-Terrorist</span> (blue) to win the round. Up to 8 rounds — first to 5 wins.</p>`;
 return `<h1>STRIKE: ARENA</h1>${mode}<p><b>WASD</b> move · <b>Mouse</b> aim (or <b>arrow keys</b>) · <b>Click</b> fire · <b>R</b> reload · <b>Shift</b> walk (more accurate)</p><p><b>Space</b> jump · <b>Ctrl</b> duck (very accurate) · running is inaccurate · frozen for <b>5s</b> at round start, then you can move — buy stays open for <b>40s</b></p><p><b>B</b> buy menu · <b>1/2</b> switch gun · <b>Scroll wheel</b> cycle weapons · <b>Right-click</b> scope (sniper) · change any key with <b>⚙ Controls</b></p><p>Kills, round wins and round losses earn money.</p><p id="loadst" style="margin-top:12px;opacity:.85"></p><p id="playhint" style="margin-top:10px;font-size:20px"></p><button id="ov-back" type="button">← Main Menu</button>`}
 function showMainMenu(){if(party||PT.players.length)ptDetach();if($('party'))$('party').style.display='none';state='menu';hadLock=false;escMenu=false;online=false;netBot=null;netReady=peerReady=false;document.body.classList.remove('play');try{document.exitPointerLock()}catch(e){}
-$('set').style.display='none';$('mdl').style.display='none';if($('lobby'))$('lobby').style.display='none';rebind=null;$('ov').style.display='none';$('mm').style.display='flex';
+$('set').style.display='none';$('mdl').style.display='none';if($('lobby'))$('lobby').style.display='none';rebind=null;$('ov').style.display='none';$('mm').style.display='flex';updCoins();
 if(window.Netplay)Netplay.leave();
 try{history.replaceState({},'',location.pathname)}catch(e){}}
 function goPlayBriefing(mode){gameMode=mode||'arena';if(mode!=='online')online=false;$('mm').style.display='none';if($('lobby'))$('lobby').style.display='none';$('ov').innerHTML=briefingHtml();$('ov').style.display='flex';refreshLoadUi();
@@ -561,6 +585,20 @@ const mmMap=$('mm-map');if(mmMap){updMapBtn();mmMap.onclick=()=>setMapChoice(map
 const mm1=$('mm-1v1');if(mm1)mm1.onclick=()=>goPlayBriefing('1v1');
 $('mm-ctrl').onclick=()=>{mouseDown=false;semiLock=false;renderSet();$('set').style.display='block'};
 $('mm-model').onclick=()=>{mouseDown=false;semiLock=false;renderMdl();$('mdl').style.display='block'};
+let skCat=0;
+function renderSkins(){updCoins();const cats=$('sk-cats'),list=$('sk-list');if(!cats||!list)return;
+  cats.innerHTML=SKIN_CATS.map((c,i)=>'<button type="button" data-i="'+i+'"'+(i===skCat?' class="on"':'')+'>'+c[0]+'</button>').join('');
+  cats.querySelectorAll('button').forEach(b=>b.onclick=()=>{skCat=+b.dataset.i;renderSkins()});
+  list.innerHTML=SKIN_CATS[skCat][1].map(wid=>'<div class="sk-wpn"><h4>'+W[wid].n+'</h4><div class="sk-grid">'+SKINS[wid].map(k=>{
+    const own=ownsSkin(wid,k.id),eq=eqSkin(wid)===k.id,data=' data-w="'+wid+'" data-s="'+k.id+'"';
+    return '<div class="sk-card'+(eq?' eq':'')+'"><div class="sk-prev"'+(k.tint?' style="border-bottom-color:'+k.tint+'"':'')+'>'+W[wid].n.toUpperCase()+'</div><div class="sk-info"><b>'+k.name+'</b><span>Value: '+k.value+' <i class="coin"></i></span>'
+      +(eq?'<button type="button" disabled>Equipped</button>':own?'<button type="button" data-a="eq"'+data+'>Equip</button>':'<button type="button" class="buy" data-a="buy"'+data+(prof.coins<k.value?' disabled':'')+'>Unlock</button>')+'</div></div>'}).join('')+'</div></div>').join('');
+  list.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{const w=b.dataset.w,sid=b.dataset.s,k=skinDef(w,sid);if(!k)return;
+    if(b.dataset.a==='buy'){if(prof.coins<k.value)return;prof.coins-=k.value;prof.owned[w+':'+sid]=1}
+    prof.eq[w]=sid;saveProf();if(cur===w)buildModel(cur);renderSkins()})}
+function mmTab(t){document.querySelectorAll('#mm nav button[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));document.querySelectorAll('#mm .tab').forEach(x=>x.classList.toggle('on',x.id==='tab-'+t));if(t==='skins')renderSkins()}
+document.querySelectorAll('#mm nav button[data-tab]').forEach(b=>b.onclick=()=>mmTab(b.dataset.tab));
+updCoins();
 
 // mode: true = host, false = joining from an invite link, 'code' = type in a friend's room code
 function showLobby(mode){
@@ -870,12 +908,12 @@ function ptHit(b,hd,dmg,pt){
 }
 function syncParty(dt){
   if(!party||!window.Netplay||!Netplay.connected)return;
-  PT.sendT-=dt;if(PT.sendT<=0){PT.sendT=.05;ptSend({t:'pst',rd:round,x:P.x,y:P.y,z:P.z,yaw:P.yaw,pitch:P.pitch,alive:!P.dead,crouch:!!crouch,w:cur,speed:P.speed||0})}
+  PT.sendT-=dt;if(PT.sendT<=0){PT.sendT=.05;ptSend({t:'pst',sk:eqSkin(cur),rd:round,x:P.x,y:P.y,z:P.z,yaw:P.yaw,pitch:P.pitch,alive:!P.dead,crouch:!!crouch,w:cur,speed:P.speed||0})}
   const k=Math.min(1,dt*18);
   for(const b of PT.remotes.values()){const r=b.st;if(!b.alive||!r)continue;
     b.x+=(r.x-b.x)*k;b.z+=(r.z-b.z)*k;b.y=(b.y||0)+((r.y||0)-(b.y||0))*k;b.crouch=!!r.crouch;
     b.g.position.set(b.x,b.y,b.z);b.g.rotation.y=r.yaw||0;
-    const u=b.g.userData;if(u&&u.rig)u.rig.scale.y=r.crouch?.7:1;
+    const u=b.g.userData;if(u&&u.rig)u.rig.scale.y=r.crouch?.7:1;applyRemoteSkin(b,r);
     if(b.body)b.body.updateMatrixWorld(true);if(b.head)b.head.updateMatrixWorld(true);
     animBot(b,(r.speed||0)>.15?Math.sin(performance.now()/170)*.55:0,dt)}
 }
@@ -1146,7 +1184,7 @@ const ss=w?2048:4096,sb=w?36:42;if(sun.shadow.mapSize.x!==ss){sun.shadow.mapSize
 sh.left=sh.bottom=-sb;sh.right=sh.top=sb;sh.updateProjectionMatrix();
 if(!w){sun.position.set(25,40,15);sun.target.position.set(0,0,0);sun.target.updateMatrixWorld()}}
 function setMapChoice(id){mapId=id;try{localStorage.setItem('strike_map',id)}catch(e){}if(id!=='arena')loadMap(id);applyMap(id);refreshLoadUi();updMapBtn()}
-function updMapBtn(){const b=$('mm-map');if(b)b.textContent='Map: '+(mapId==='arena'?'Arena':MAPS[mapId].name)}
+function updMapBtn(){const b=$('mm-map');if(b)b.innerHTML='<b>Map: '+(mapId==='arena'?'Arena':MAPS[mapId].name)+'</b><small>Click to change map</small>'}
 function spawnOf(team){const m=world&&MAPS[mapId];return m?m[team]:null}
 loadAgentSkin('ct');loadAgentSkin('t');loadAllWeapons();loadMap('mirage');
 function buildBot(team){if(team==='ct'&&ctSkinTpl){try{return buildSkinnedBot('ct')}catch(err){console.warn('CT skin clone failed',err)}}
@@ -1237,16 +1275,16 @@ function endRound(win){let lb=0;
 if(online){
   if(win){if(myTeam==='t')wins++;else loses++;lossStreak=0;money=Math.min(16000,money+3250)}
   else{if(myTeam==='t')loses++;else wins++;lossStreak++;lb=1400+Math.min(lossStreak-1,4)*500;money=Math.min(16000,money+lb)}
-}else if(win){wins++;lossStreak=0;money=Math.min(16000,money+3250)}else{lossStreak++;loses++;lb=1400+Math.min(lossStreak-1,4)*500;money=Math.min(16000,money+lb)}
+}else if(win){wins++;lossStreak=0;money=Math.min(16000,money+3250);addCoins(COIN.round)}else{lossStreak++;loses++;lb=1400+Math.min(lossStreak-1,4)*500;money=Math.min(16000,money+lb)}
 updHud();showWinBanner(online?(win?myTeam==='t':myTeam==='ct'):win);
 if(online&&window.Netplay&&Netplay.role==='host'){
   const done=wins>4||loses>4||wins+loses>=8;
   Netplay.send({t:'round',phase:done?'end':'next',wins,loses,round,youWin:!win});
 }
 if(wins>4||loses>4||wins+loses>=8){state='menu';hadLock=false;try{document.exitPointerLock()}catch(e){}
-const iWon=online?(myTeam==='t'?wins>loses:loses>wins):(wins>loses);
-showOv(iWon?'VICTORY':(wins===loses?'DRAW':'DEFEAT'),(online?'Online 1v1 · ':'')+'Terrorists <b style="color:#ff9a2e">'+wins+'</b> – <b style="color:#6aa8ff">'+loses+'</b> Counter-Terrorists<br><br><b>Click to play again</b>');return}
-if(win){roundTimer=3;feed('Round won! +$3250 — next round soon')}
+const iWon=online?(myTeam==='t'?wins>loses:loses>wins):(wins>loses),bonus=iWon&&earnsCoins()?COIN.match:0;addCoins(bonus);
+showOv(iWon?'VICTORY':(wins===loses?'DRAW':'DEFEAT'),(online?'Online 1v1 · ':'')+'Terrorists <b style="color:#ff9a2e">'+wins+'</b> – <b style="color:#6aa8ff">'+loses+'</b> Counter-Terrorists'+(bonus?'<br><b style="color:#ffd257">+'+bonus+' coins</b> for winning the match':'')+'<br><br><b>Click to play again</b>');return}
+if(win){roundTimer=3;feed('Round won! +$3250'+(earnsCoins()?' · +'+COIN.round+' coins':'')+' — next round soon')}
 else if(online){roundTimer=3;feed('Round lost — next round soon')}
 else{state='dead';hadLock=false;try{document.exitPointerLock()}catch(e){}showOv('ROUND LOST','Loss bonus <b>+$'+lb+'</b> (a win pays $3250)<br>Score '+wins+' – '+loses+'<br><br><b>Click for next round</b>')}}
 function updBar(){
@@ -1414,10 +1452,10 @@ const k=Math.floor(recoil);const PAT=[0,0,.2,.3,.1,-.1,-.3,-.5,-.4,-.2,.3,.6,.7,
 recoil=Math.min(recoil+1,29);P.pitch+=(k<12?.009:.0015)*W[cur].kick;P.yaw+=(PAT[k]||0)*.006*W[cur].kick+(Math.random()-.5)*.0015;
 if(W[cur].scope)scoped=false;if(ammo<=0)reload();updHud()}
 function killBot(b,hd,ai){b.alive=false;b.diedAt=performance.now();
-if(!party){const wid=b.team==='t'?'ak':'m4',a=Math.random()*Math.PI*2;spawnDrop(wid,W[wid].mag,W[wid].res,b.x,(b.y||0)+1,b.z,Math.cos(a)*1.5,1.5,Math.sin(a)*1.5)}if(!ai){kills++;if(b.team==='ct'||(party&&b.enemy)){roundKills++;flashRoundKills()}money=Math.min(16000,money+W[cur].kill)}
+if(!party){const wid=b.team==='t'?'ak':'m4',a=Math.random()*Math.PI*2;spawnDrop(wid,W[wid].mag,W[wid].res,b.x,(b.y||0)+1,b.z,Math.cos(a)*1.5,1.5,Math.sin(a)*1.5)}if(!ai){kills++;addCoins(COIN.kill);if(b.team==='ct'||(party&&b.enemy)){roundKills++;flashRoundKills()}money=Math.min(16000,money+W[cur].kill)}
 [b.body,b.head,...b.g.userData.limbs].forEach(m=>{let i=botMeshes.indexOf(m);if(i>=0)botMeshes.splice(i,1);i=allyMeshes.indexOf(m);if(i>=0)allyMeshes.splice(i,1)});
 for(let i=0;i<8;i++)stain(b.x+(Math.random()-.5)*1.2,b.z+(Math.random()-.5)*1.2,.12+Math.random()*.25);stain(b.x,b.z,.55);
-if(!party)feed(ai?(b.team==='ct'?'A teammate got a kill':'A teammate was killed'):(hd?'★ Headshot! ':'')+'Enemy down');updHud()}
+if(!party)feed(ai?(b.team==='ct'?'A teammate got a kill':'A teammate was killed'):(hd?'★ Headshot! ':'')+'Enemy down'+(earnsCoins()?' · +'+COIN.kill+' coins':''));updHud()}
 function hideViewWeapon(){
   gun.visible=false;scoped=false;$('scope').style.display='none';
   if(viewGlove)viewGlove.visible=false;
@@ -1448,7 +1486,7 @@ const tv=new THREE.Vector3();
 function syncNetplay(dt){
   if(!online||!window.Netplay||!Netplay.connected)return;
   netSendT-=dt;
-  if(netSendT<=0){netSendT=.05;Netplay.send({t:'state',rd:round,x:P.x,z:P.z,y:P.y,yaw:P.yaw,pitch:P.pitch,hp:P.hp,alive:!P.dead,crouch:!!crouch,w:cur,speed:P.speed||0})}
+  if(netSendT<=0){netSendT=.05;Netplay.send({t:'state',sk:eqSkin(cur),rd:round,x:P.x,z:P.z,y:P.y,yaw:P.yaw,pitch:P.pitch,hp:P.hp,alive:!P.dead,crouch:!!crouch,w:cur,speed:P.speed||0})}
   const r=Netplay.remote;if(!r||!netBot||!netBot.g)return;
   // Last round's "dead" state would otherwise instantly kill the freshly spawned opponent
   if(r.rd!=null&&r.rd!==round)return;
@@ -1465,7 +1503,7 @@ function syncNetplay(dt){
   // Keep hit volumes aligned with the visible avatar
   if(netBot.body)netBot.body.updateMatrixWorld(true);
   if(netBot.head)netBot.head.updateMatrixWorld(true);
-  if(u&&u.gun){u.gun.visible=true;u.gun.traverse(o=>{if(o.isMesh)o.visible=true})}
+  if(u&&u.gun){u.gun.visible=true;u.gun.traverse(o=>{if(o.isMesh)o.visible=true});applyRemoteSkin(netBot,r)}
   const moving=(r.speed||0)>.15;animBot(netBot,moving?Math.sin(performance.now()/170)*.55:0,dt);
   if(u&&u.fl)u.fl.visible=false;
 }
