@@ -154,9 +154,9 @@ sniper:{gx:.23,gy:-.19,gz:-.34,tip:.015,hold:[0,0,0],hx:.17,hy:-.33,hz:-.4,psx:.
 nade:{gx:.12,gy:-.07,gz:-.3,tip:-.04,hx:.1,hy:-.46,hz:-.38,psx:.85,psy:.78},
 knife:{gx:.1,gy:-.06,gz:-.27,tip:.6,ry:1,hx:.1,hy:-.46,hz:-.36,psx:.8,psy:.75}
 };
-const VIEW_Z={ak:.14};
+const VIEW_Z={};
 // Pulling the whole viewmodel (gun + gloves) toward the camera by this factor scales it on screen without moving its anchor
-const VM_ZOOM=1.3,VM_DROP={rifle:.03,smg:.03,sniper:.03};
+const VM_ZOOM={knife:1.3},VM_DROP={};
 const HAND_TEX={pistol:null,rifle:null};let handTexLoading=false,viewHandPlate=null,viewHandsRoot=null;
 function handPlateKey(cat){return(cat==='rifle'||cat==='smg'||cat==='sniper')?'rifle':'pistol'}
 function loadHandTextures(){if(handTexLoading||(HAND_TEX.pistol&&HAND_TEX.rifle))return;handTexLoading=true;
@@ -228,7 +228,7 @@ const B=ARM_POSE[cat]||ARM_POSE.rifle,X=ARM_WPN[cur]||{},P={};for(const s of ['L
 for(const s of ['L','R','O']){const pv=u.arms[s],c=P[s];if(!pv)continue;pv.visible=!!c;if(!c)continue;
 // cam: at/f/p are in camera space (screen-anchored), so undo the gun's rest pose
 if(c.cam){const vp=VIEW_POSE[cat]||VIEW_POSE.rifle,q=new THREE.Quaternion().setFromEuler(new THREE.Euler(vp.tip||0,vp.ry||0,vp.rz||0)).invert(),
-o=new THREE.Vector3(vp.gx,vp.gy-(VM_DROP[cat]||0),vp.gz+(VIEW_Z[cur]||0)).multiplyScalar(1/VM_ZOOM);
+o=new THREE.Vector3(vp.gx,vp.gy-(VM_DROP[cat]||0),vp.gz+(VIEW_Z[cur]||0)).multiplyScalar(1/(VM_ZOOM[cat]||1));
 pv.position.fromArray(c.at).sub(o).applyQuaternion(q);_ay.fromArray(c.f).normalize().applyQuaternion(q);_ax.fromArray(c.p).applyQuaternion(q);
 _ax.addScaledVector(_ay,-_ax.dot(_ay)).normalize().negate();_az.crossVectors(_ax,_ay);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);continue}
 if(c.up){const g=c.mag&&magGrip(),at=g?g.at:c.at;_ax.fromArray(c.p).negate().normalize();_az.fromArray(g?g.up:c.up).multiplyScalar(s==='L'?-1:1);_az.addScaledVector(_ax,-_az.dot(_ax)).normalize();
@@ -1344,7 +1344,7 @@ if(mouseDown||reloading>0||scoped||P.dead)inspT=0;
 let ix=0,iy=0,irx=0,iry=0,irz=0;
 if(inspT>0){inspT-=dt;const p=1-inspT/INSPECT,sm=t=>t<=0?0:t>=1?1:t*t*(3-2*t),e=sm(p/.15)*(1-sm((p-.85)/.15)),s=sm((p-.15)/.7);
 ix=-.06*e;iy=.04*e;irx=-.15*e;iry=e*(.8-1.4*s);irz=e*.35*Math.sin(Math.PI*s)}
-gun.position.set(vp.gx+bx+ix,gy-(VM_DROP[cat]||0)+by+iy-rl*.05+vkick*.012,vp.gz+(VIEW_Z[cur]||0)+kick*.005+vkick*.035).multiplyScalar(1/VM_ZOOM);
+gun.position.set(vp.gx+bx+ix,gy-(VM_DROP[cat]||0)+by+iy-rl*.05+vkick*.012,vp.gz+(VIEW_Z[cur]||0)+kick*.005+vkick*.035).multiplyScalar(1/(VM_ZOOM[cat]||1));
 gun.rotation.set((vp.tip||0)+irx+kick*.006+rl*.12+vkick*.07+by*.6,(vp.ry||0)+iry,(vp.rz||0)+irz+bx*1.4);
 const wantKey=handPlateKey(cat);
 if(viewGlove&&viewGlove.parent===gun){if(gun.userData.viewCat!==cat)mountViewHands()}
