@@ -126,6 +126,8 @@ const SKIN_CATS=[['Pistols',['glock','deagle']],['SMGs',['mp9']],['Rifles',['ak'
 // model: replaces the weapon's mesh (fix = extra hold rotation for that model)
 const SKINS={};for(const [,ids] of SKIN_CATS)for(const id of ids)SKINS[id]=[{id:'base',name:'Base',value:0}];
 SKINS.knife.push({id:'scary',name:'Scary Knife',value:300,model:'assets/skins/knife-scary.glb?v=3',fix:{rz:Math.PI/2,z:-.125,y:-.035}});
+SKINS.deagle.push({id:'printstream',name:'Printstream',value:250,model:'assets/skins/deagle-printstream.glb?v=1',fix:{y:.012}});
+SKINS.m4.push({id:'printstream',name:'Printstream',value:350,model:'assets/skins/m4-printstream.glb?v=1'});
 // Emotes: pose(t) gives wrist targets h, elbow pole p and palm direction in rig space (+X right, +Y up, −Z forward), c = finger curl
 const HANG=s=>({h:[s*.24,.9,.03],p:[0,0,1],palm:[-s,0,0],c:.3});
 const EMOTES=[
