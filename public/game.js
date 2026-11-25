@@ -150,7 +150,7 @@ smg:{gx:.21,gy:-.17,gz:-.3,tip:.02,hold:[0,0,0],hx:.15,hy:-.33,hz:-.4,psx:.22,ps
 rifle:{gx:.22,gy:-.15,gz:-.3,tip:.02,hold:[0,0,0],hx:.16,hy:-.327,hz:-.4,psx:.23,psy:.46,over:1},
 sniper:{gx:.23,gy:-.19,gz:-.34,tip:.015,hold:[0,0,0],hx:.17,hy:-.33,hz:-.4,psx:.23,psy:.46,over:1},
 nade:{gx:.12,gy:-.07,gz:-.3,tip:-.04,hx:.1,hy:-.46,hz:-.38,psx:.85,psy:.78},
-knife:{gx:.13,gy:-.08,gz:-.28,tip:.02,hx:.1,hy:-.46,hz:-.36,psx:.8,psy:.75}
+knife:{gx:.17,gy:-.15,gz:-.3,tip:.02,hx:.1,hy:-.46,hz:-.36,psx:.8,psy:.75}
 };
 const VIEW_Z={ak:.14};
 // Pulling the whole viewmodel (gun + gloves) toward the camera by this factor scales it on screen without moving its anchor
@@ -305,12 +305,12 @@ C(.025,.28,bk,0,.085,-.05);C(.034,.05,bk,0,.085,-.22);C(.03,.04,bk,0,.085,.12);C
 B(.012,.022,.012,bk,0,.113,-.05);B(.022,.012,.012,bk,.03,.087,-.05);B(.02,.03,.03,bk,0,.06,-.12);B(.02,.03,.03,bk,0,.06,.02);
 B(.06,.01,.01,st,.04,.03,.06);B(.018,.018,.018,bk,.075,.03,.06);B(.035,.07,.1,bk,0,-.06,-.02);B(.035,.1,.05,ol,0,-.08,.12,-.25);
 hd(.12,-.35,-.05);end(-1,.7)}
-function buildKnife(){const kg=new THREE.Group();gun.add(kg);kg.rotation.x=.45;const{st,bk,pl,B}=kit(kg);
+function buildKnife(){const kg=new THREE.Group();gun.add(kg);kg.rotation.x=.2;const{st,bk,pl,B}=kit(kg);
 const sh=new THREE.Shape();sh.moveTo(0,.014);sh.lineTo(.15,.016);sh.quadraticCurveTo(.21,.014,.235,-.008);sh.quadraticCurveTo(.2,-.02,.15,-.022);sh.lineTo(0,-.02);sh.lineTo(0,.014);
 const bl=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:.004,bevelEnabled:false}),st);bl.rotation.y=Math.PI/2;bl.position.set(-.002,0,-.07);kg.add(bl);
 B(.026,.036,.13,pl,0,0,0);for(let i=0;i<4;i++)B(.028,.038,.004,bk,0,0,-.04+i*.025);B(.022,.05,.01,st,0,0,-.07);B(.03,.04,.012,st,0,0,.068);
 for(let i=0;i<5;i++)B(.004,.006,.01,bk,0,.015,-.12-i*.02);B(.0015,.006,.15,bk,.003,.002,-.17);
-B(.06,.06,.08,MT.g,0,-.005,.01);B(.075,.075,.4,MT.l,.03,-.04,.3,-.12);gun.scale.setScalar(1.3)}
+gun.scale.setScalar(1)}
 const nl=[],smokeMeshes=[],smokeL=[],efx=[],nadeN=new THREE.Vector3();let blindT=0;
 function equipKnife(){inv.knife=inv.knife||{ammo:1,reserve:0};if(cur!=='knife')setWeapon('knife')}
 function equipNade(id){if(nades[id]<=0){feed('No '+G[id].n+' — buy one with B');return}inv[id]=inv[id]||{ammo:1,reserve:0};if(cur!==id)setWeapon(id)}
@@ -1297,7 +1297,7 @@ else{
 gun.visible=!(scoped&&camera.fov<40);$('scope').style.display=(scoped&&camera.fov<30)?'block':'none';
 if(viewHandsRoot)viewHandsRoot.visible=true;
 const rl=reloading>0?Math.sin(Math.min(1,1-reloading/W[cur].rl)*Math.PI):0;
-const cat=viewCat(cur),vp=VIEW_POSE[cat]||VIEW_POSE.rifle;const gy=gun.userData.loaded?vp.gy:-.2;
+const cat=viewCat(cur),vp=VIEW_POSE[cat]||VIEW_POSE.rifle;const gy=gun.userData.loaded||cat==='knife'?vp.gy:-.2;
 lyaw=P.yaw;lpit=P.pitch;swY=0;swX=0;
 const moving=P.speed>0&&(P.gnd||!world)&&!P.lad;bobA+=((moving?P.speed:0)-bobA)*Math.min(1,dt*8);if(moving)bobT+=dt*(5+4*P.speed);
 const bA=bobA*(scoped?.2:1),bx=Math.sin(bobT)*.011*bA,by=-Math.abs(Math.cos(bobT))*.013*bA;
