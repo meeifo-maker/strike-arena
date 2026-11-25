@@ -101,6 +101,8 @@ function groundAt(x,z,y){if(world){const g=world.ground(x,z,y+world.STEP);return
 
 // Gun
 const gun=new THREE.Group();
+// Parent of the viewmodel; scale.x=-1 mirrors gun + arms for left-handed mode
+const vmRoot=new THREE.Group();vmRoot.add(gun);let leftHand=false,inspT=0;
 const flash=new THREE.Mesh(new THREE.OctahedronGeometry(.035,0).scale(1,1,2.2),new THREE.MeshBasicMaterial({color:0xffc860,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));flash.position.z=-.35;flash.visible=false;
 const MT={s:new THREE.MeshStandardMaterial({color:0x2a2c30,metalness:.85,roughness:.38}),d:new THREE.MeshStandardMaterial({color:0x17181b,metalness:.3,roughness:.6}),w:new THREE.MeshStandardMaterial({map:mkTex('#74401f',1,false),roughness:.65}),g:new THREE.MeshStandardMaterial({color:0x17181b,roughness:.8}),l:new THREE.MeshStandardMaterial({color:0x3a4234,roughness:.9}),b:new THREE.MeshStandardMaterial({color:0x0e0e10,metalness:.6,roughness:.45}),o:new THREE.MeshStandardMaterial({color:0x4a5238,roughness:.6})};
 const W={
@@ -236,7 +238,7 @@ _az.crossVectors(_ax,_ay);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotati
 window.ARM_POSE=ARM_POSE;window.ARM_WPN=ARM_WPN;window.magGrip=magGrip;window.reposeArms=()=>{if(viewGlove){viewGlove.userData.cat=null;poseArms(viewCat(cur))}};
 function mountViewHands(){if(!camera)return;loadGloves();loadHandTextures();
 try{
-if(!viewHandsRoot){viewHandsRoot=new THREE.Group();viewHandsRoot.name='viewHands';camera.add(viewHandsRoot)}
+if(!viewHandsRoot){viewHandsRoot=new THREE.Group();viewHandsRoot.name='viewHands';vmRoot.add(viewHandsRoot)}
 if(viewHandPlate){if(viewHandPlate.parent)viewHandPlate.parent.remove(viewHandPlate);viewHandPlate=null}
 for(let i=viewHandsRoot.children.length-1;i>=0;i--)viewHandsRoot.remove(viewHandsRoot.children[i]);
 if(gun)for(let i=gun.children.length-1;i>=0;i--){const c=gun.children[i];if(c.userData&&c.userData.viewHands)gun.remove(c)}
@@ -254,7 +256,7 @@ plate.frustumCulled=false;plate.renderOrder=vp.over?10:2;viewHandsRoot.add(plate
 if(gun){gun.traverse(o=>{if(o.isMesh&&!o.userData.viewHands){o.renderOrder=6;if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];for(const m of ms){m.depthTest=true;m.depthWrite=true;m.transparent=false}}}});gun.userData.viewCat=cat}
 window.__vh={cat,key,pos:plate.position.toArray(),size:[vp.psx,vp.psy]}}catch(err){console.warn('viewHands failed',err)}}
 function buildModel(id){while(gun.children.length)gun.remove(gun.children[0]);gun.userData.loaded=false;if(custom&&cfgM.id===id){gun.add(custom.root);gun.add(flash);placeCustom();scoped=false;mountViewHands();return}if(placeLoadedWeapon(id)){scoped=false;mountViewHands();return}const BD={ak:buildAK,m4:buildM4,glock:buildGlock2,deagle:buildDeagle2,mp9:buildMP9,awp:buildAWP,knife:buildKnife,he:()=>buildNade2('he'),flash:()=>buildNade2('flash'),smoke:()=>buildNade2('smoke')};scoped=false;if(BD[id])BD[id]();mountViewHands()}
-function setWeapon(id){if(inv[cur]){inv[cur].ammo=ammo;inv[cur].reserve=reserve}cur=id;ammo=inv[id].ammo;reserve=inv[id].reserve;reloading=0;buildModel(id);updHud()}
+function setWeapon(id){if(inv[cur]){inv[cur].ammo=ammo;inv[cur].reserve=reserve}cur=id;inspT=0;ammo=inv[id].ammo;reserve=inv[id].reserve;reloading=0;buildModel(id);updHud()}
 function cycleWeapons(dir){const owned=[];for(const k of Object.keys(W)){if(!inv[k])continue;if(W[k].nade&&(!(k in nades)||nades[k]<=0))continue;owned.push(k)}owned.sort((a,b)=>(W[a].slot-W[b].slot)||a.localeCompare(b));if(owned.length<2)return;let i=owned.indexOf(cur);if(i<0)i=0;const n=owned[(i+dir+owned.length*10)%owned.length];if(n!==cur)setWeapon(n)}
 function grainTex(){const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');x.fillStyle='#7a4220';x.fillRect(0,0,256,256);
 for(let i=0;i<140;i++){x.strokeStyle='rgba('+(Math.random()<.55?'45,20,6':'180,115,62')+','+(.08+Math.random()*.22)+')';x.lineWidth=.5+Math.random()*2.2;x.beginPath();const y=Math.random()*256;x.moveTo(0,y);for(let q=1;q<=8;q++)x.lineTo(q*32,y+Math.sin(q*1.3+i)*5);x.stroke()}
@@ -431,6 +433,34 @@ B(.008,top*2+.02,.022,st,sx,0,0);B(sx+.004,.008,.022,st,sx/2,top+.004,0);
 const pr=new THREE.Mesh(new THREE.TorusGeometry(.014,.0025,6,14),st);pr.position.set(sx+.025,top-.005,0);pr.rotation.y=Math.PI/2;gun.add(pr);B(.025,.003,.003,st,sx+.012,top-.005,0);
 nadeHands(B);gun.scale.setScalar(1.5)}
 function swap(s){for(const k in inv)if(W[k].slot===s&&k!==cur){setWeapon(k);return}}
+function toggleHand(){leftHand=!leftHand;vmRoot.scale.x=leftHand?-1:1;save();feed(leftHand?'Left hand':'Right hand')}
+// Inspect: swing the gun to show one side then the other; any action cancels it
+const INSPECT=2.4;
+function startInspect(){if(P.dead||reloading>0||scoped||!gun.visible)return;inspT=INSPECT}
+// Guns lying on the floor, from G or from killed players. Walk over one to take it if that slot is empty.
+const drops=[],DROP_LEN={ak:.87,m4:.85,awp:1.1,mp9:.45,deagle:.27,glock:.2};let pickCd=0;
+function dropMesh(id){const tpl=WEAPON_TPL[id]||BOT_GUN_TPL[id];if(!tpl)return null;const m=fitTpGun(cloneWeapon(tpl)),f=(DROP_LEN[id]||.5)/.75;
+m.scale.multiplyScalar(f);m.position.multiplyScalar(f);m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false}});
+const side=new THREE.Group();side.rotation.z=Math.PI/2;side.add(m);const g=new THREE.Group();g.add(side);g.updateMatrixWorld(true);
+side.position.y=-new THREE.Box3().setFromObject(side).min.y;return g}
+function spawnDrop(id,ammo,reserve,x,y,z,vx=0,vy=0,vz=0){const g=dropMesh(id);if(!g)return;
+if(drops.length>=30){const o=drops.shift();scene.remove(o.g)}
+g.position.set(x,y,z);g.rotation.y=Math.random()*Math.PI*2;scene.add(g);drops.push({id,ammo,reserve,g,vx,vy,vz,rest:false})}
+function clearDrops(){for(const d of drops)scene.remove(d.g);drops.length=0}
+function dropWeapon(){if(P.dead||!inv[cur])return;const w=W[cur];if(w.melee||w.nade||(w.slot!==1&&w.slot!==2))return;
+const id=cur,d=inv[id];d.ammo=ammo;d.reserve=reserve;delete inv[id];inspT=0;scoped=false;
+const fx=-Math.sin(P.yaw),fz=-Math.cos(P.yaw),up=Math.sin(P.pitch);
+spawnDrop(id,d.ammo,d.reserve,P.x+fx*.5,P.y+P.h-.35,P.z+fz*.5,fx*4,2+up*4,fz*4);pickCd=1;
+const ks=Object.keys(inv),next=ks.find(k=>W[k].slot===1)||ks.find(k=>W[k].slot===2);
+if(next)setWeapon(next);else{inv.knife=inv.knife||{ammo:1,reserve:0};setWeapon('knife')}feed('Dropped '+w.n)}
+function updDrops(dt){pickCd-=dt;
+for(let i=drops.length-1;i>=0;i--){const d=drops[i],p=d.g.position;
+if(!d.rest){d.vy-=20*dt;const nx=p.x+d.vx*dt,nz=p.z+d.vz*dt;
+if(world&&world.blocked(nx,nz,.12,p.y+.05,p.y+.4)){d.vx*=-.3;d.vz*=-.3}else{p.x=nx;p.z=nz}
+p.y+=d.vy*dt;const gr=groundAt(p.x,p.z,p.y);if(p.y<=gr){p.y=gr;if(d.vy<-3){d.vy*=-.25;d.vx*=.5;d.vz*=.5}else{d.vy=0;d.rest=true}}}
+if(P.dead||pickCd>0||Math.hypot(P.x-p.x,P.z-p.z)>1||Math.abs(P.y-p.y)>1.5)continue;
+const s=W[d.id].slot;if(Object.keys(inv).some(k=>W[k].slot===s))continue;
+inv[d.id]={ammo:d.ammo,reserve:d.reserve};scene.remove(d.g);drops.splice(i,1);setWeapon(d.id);feed('Picked up '+W[d.id].n)}}
 const SH=['deagle','mp9','m4','ak','awp','armor','he','flash','smoke'];
 function renderBuy(){let h='<b>BUY MENU</b> — money <b style=color:#7CFF6B>$'+money+'</b><br><br>';SH.forEach((id,i)=>{const g=G[id],nm=id==='armor'?'Kevlar Vest':g?g.n:W[id].n,pr=id==='armor'?650:g?g.price:W[id].price,own=id==='armor'?armor>=100:g?nades[id]>=(id==='flash'?2:1):!!inv[id];h+='<div class=bi data-i='+i+' style=opacity:'+((money>=pr&&!own)?1:.4)+'>['+(i+1)+'] '+nm+' — $'+pr+(own?' (owned)':'')+'</div>'});h+='<br><small>Press 1–9 to buy · B to close</small>';h+='<br><button id=bc>Close (B / Esc)</button>';$('buy').innerHTML=h;$('buy').querySelectorAll('.bi').forEach(d=>d.onclick=()=>buyItem(+d.dataset.i));$('bc').onclick=closeBuy;$('buy').insertAdjacentHTML('afterbegin','<button class=x id=bx>×</button>');$('bx').onclick=closeBuy}
 function openBuy(){if(buyT<=0){feed('Buy time is over');return}buyOpen=true;mouseDown=false;semiLock=false;renderBuy();$('buy').style.display='block';try{document.exitPointerLock()}catch(e){}}
@@ -445,11 +475,11 @@ const BOT_GUN_TPL={ak:captureGunTemplate('ak'),m4:captureGunTemplate('m4')};
 const WEAPON_TPL={};let weaponsLeft=0,weaponsState='loading';
 const WEAPON_FILES={glock:{file:'glock.glb',kind:'pistol',key:'wpn-glock-v1'},ak:{file:'ak.glb',kind:'rifle',key:'wpn-ak-v3'},m4:{file:'m4.glb',kind:'rifle',key:'wpn-m4-v3'},deagle:{file:'deagle.glb',kind:'pistol',key:'wpn-deagle-v3'},awp:{file:'awp.glb',kind:'rifle',key:'wpn-awp-v3'},mp9:{file:'mp9.glb',kind:'smg',key:'wpn-mp9-v3'},he:{file:'he.glb',kind:'nade',key:'wpn-he-v3'},flash:{file:'flash.glb',kind:'nade',key:'wpn-flash-v3'},smoke:{file:'smoke.glb',kind:'nade',key:'wpn-smoke-v3'},knife:{file:'knife.glb',kind:'knife',key:'wpn-knife-ct-v1'}};
 buildModel('glock');
-const DK={fwd:'KeyW',back:'KeyS',left:'KeyA',right:'KeyD',jump:'Space',duck:'ControlLeft',walk:'ShiftLeft',fire:'Mouse0',scope:'Mouse2',reload:'KeyR',buy:'KeyB',slot1:'Digit1',slot2:'Digit2',knife:'Digit3',he:'Digit6',flash:'Digit7',smoke:'Digit8'};
-const ACT=[['fwd','Move forward'],['back','Move back'],['left','Move left'],['right','Move right'],['jump','Jump'],['duck','Duck'],['walk','Walk (quiet)'],['fire','Fire'],['scope','Scope (sniper)'],['reload','Reload'],['buy','Buy menu'],['slot1','Primary weapon'],['slot2','Pistol'],['knife','Knife'],['he','Grenade'],['flash','Flashbang'],['smoke','Smoke grenade']];
+const DK={fwd:'KeyW',back:'KeyS',left:'KeyA',right:'KeyD',jump:'Space',duck:'ControlLeft',walk:'ShiftLeft',fire:'Mouse0',scope:'Mouse2',reload:'KeyR',buy:'KeyB',slot1:'Digit1',slot2:'Digit2',knife:'Digit3',he:'Digit6',flash:'Digit7',smoke:'Digit8',inspect:'KeyF',drop:'KeyG',hand:'KeyH'};
+const ACT=[['fwd','Move forward'],['back','Move back'],['left','Move left'],['right','Move right'],['jump','Jump'],['duck','Duck'],['walk','Walk (quiet)'],['fire','Fire'],['scope','Scope (sniper)'],['reload','Reload'],['buy','Buy menu'],['slot1','Primary weapon'],['slot2','Pistol'],['knife','Knife'],['he','Grenade'],['flash','Flashbang'],['smoke','Smoke grenade'],['inspect','Inspect weapon'],['drop','Drop weapon'],['hand','Switch hand']];
 let K=Object.assign({},DK),sens=1,rebind=null,bindUntil=0;
-try{const s=JSON.parse(localStorage.getItem('strikeCfg')||'null');if(s){Object.assign(K,s.K);sens=s.sens||1}}catch(e){}
-function save(){try{localStorage.setItem('strikeCfg',JSON.stringify({K,sens}))}catch(e){}}
+try{const s=JSON.parse(localStorage.getItem('strikeCfg')||'null');if(s){Object.assign(K,s.K);sens=s.sens||1;leftHand=!!s.lh}}catch(e){}
+function save(){try{localStorage.setItem('strikeCfg',JSON.stringify({K,sens,lh:leftHand}))}catch(e){}}
 function lab(c){return ({Mouse0:'Left Click',Mouse1:'Middle Click',Mouse2:'Right Click',Space:'Space',ControlLeft:'Left Ctrl',ControlRight:'Right Ctrl',ShiftLeft:'Left Shift',ShiftRight:'Right Shift',AltLeft:'Left Alt'})[c]||c.replace('Key','').replace('Digit','').replace('Arrow','')}
 function renderSet(){let h='<b style=font-size:22px>CONTROLS</b><br><br><table>';
 ACT.forEach(a=>{h+='<tr><td>'+a[1]+'</td><td><button data-a='+a[0]+'>'+(rebind===a[0]?'Press a key…':lab(K[a[0]]))+'</button></td></tr>'});
@@ -665,11 +695,12 @@ if(c===K.scope&&W[cur].scope&&reloading<=0)scoped=!scoped;
 if(c===K.reload)reload();
 if(c===K.buy){buyOpen?closeBuy():openBuy()}
 else if(buyOpen&&/^Digit[1-9]$/.test(c))buyItem(+c.slice(5)-1);
-else if(c===K.slot1)swap(1);else if(c===K.slot2)swap(2);else if(c===K.knife)equipKnife();else if(c===K.he)equipNade('he');else if(c===K.flash)equipNade('flash');else if(c===K.smoke)equipNade('smoke')}
+else if(c===K.slot1)swap(1);else if(c===K.slot2)swap(2);else if(c===K.knife)equipKnife();else if(c===K.he)equipNade('he');else if(c===K.flash)equipNade('flash');else if(c===K.smoke)equipNade('smoke');
+else if(c===K.hand)toggleHand();else if(c===K.drop)dropWeapon();else if(c===K.inspect)startInspect()}
 function up(c){keys[c]=false;if(c===K.fire){mouseDown=false;semiLock=false}}
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;mouseDown=false});
 addEventListener('wheel',e=>{if(state!=='play'||buyOpen||P.dead||$('set').style.display==='block'||$('mdl').style.display==='block')return;e.preventDefault();const d=Math.sign(e.deltaY);if(d)cycleWeapons(d)},{passive:false});
-renderer.domElement.addEventListener('click',()=>{if(state==='play'&&!buyOpen&&document.pointerLockElement!==renderer.domElement)try{const p=renderer.domElement.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}catch(e){}});gun.position.set(.1,-.12,-.36);camera.add(gun);loadHandTextures();const mlight=new THREE.PointLight(0xffa040,0,10);mlight.position.set(.1,-.1,-.9);camera.add(mlight);
+renderer.domElement.addEventListener('click',()=>{if(state==='play'&&!buyOpen&&document.pointerLockElement!==renderer.domElement)try{const p=renderer.domElement.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}catch(e){}});gun.position.set(.1,-.12,-.36);camera.add(vmRoot);vmRoot.scale.x=leftHand?-1:1;loadHandTextures();const mlight=new THREE.PointLight(0xffa040,0,10);mlight.position.set(.1,-.1,-.9);camera.add(mlight);
 
 // State
 const P={x:0,z:25,yaw:0,pitch:0,hp:100,speed:0,h:1.6,y:0,vy:0,gnd:true,dead:false};
@@ -949,7 +980,7 @@ function spawnNetOpponent(){
   // Ensure third-person gun is mounted once weapon assets are ready
   if(netBot.g.userData){const u=netBot.g.userData;if((!u.gun||!u.gun.parent)&&u.rig){const mounted=mountBotGun(u.rig,u.model,theirTeam,u.bones||{});u.gun=mounted.rg;u.fl=mounted.fl}}
 }
-function startRound(){clearBots();netBot=null;if(online&&window.Netplay)Netplay.remote=null;
+function startRound(){clearBots();clearDrops();netBot=null;if(online&&window.Netplay)Netplay.remote=null;
 for(let i=nl.length-1;i>=0;i--)if(nl[i].net){scene.remove(nl[i].m);nl.splice(i,1)}
 makeSpawnPools();P.y=0;
 const mySp=takeSpot(online?myTeam:'t');
@@ -1138,7 +1169,8 @@ if(b.hp<=0)killBot(b,hd)}
 const k=Math.floor(recoil);const PAT=[0,0,.2,.3,.1,-.1,-.3,-.5,-.4,-.2,.3,.6,.7,.5,.2,-.3,-.6,-.7,-.4,.1,.5,.6,.3,0,-.3,-.5,-.3,0,.2,.3];
 recoil=Math.min(recoil+1,29);P.pitch+=(k<12?.009:.0015)*W[cur].kick;P.yaw+=(PAT[k]||0)*.006*W[cur].kick+(Math.random()-.5)*.0015;
 if(W[cur].scope)scoped=false;if(ammo<=0)reload();updHud()}
-function killBot(b,hd,ai){b.alive=false;b.diedAt=performance.now();if(!ai){kills++;if(b.team==='ct'){roundKills++;flashRoundKills()}money=Math.min(16000,money+W[cur].kill)}
+function killBot(b,hd,ai){b.alive=false;b.diedAt=performance.now();
+{const wid=b.team==='t'?'ak':'m4',a=Math.random()*Math.PI*2;spawnDrop(wid,W[wid].mag,W[wid].res,b.x,(b.y||0)+1,b.z,Math.cos(a)*1.5,1.5,Math.sin(a)*1.5)}if(!ai){kills++;if(b.team==='ct'){roundKills++;flashRoundKills()}money=Math.min(16000,money+W[cur].kill)}
 [b.body,b.head,...b.g.userData.limbs].forEach(m=>{let i=botMeshes.indexOf(m);if(i>=0)botMeshes.splice(i,1);i=allyMeshes.indexOf(m);if(i>=0)allyMeshes.splice(i,1)});
 for(let i=0;i<8;i++)stain(b.x+(Math.random()-.5)*1.2,b.z+(Math.random()-.5)*1.2,.12+Math.random()*.25);stain(b.x,b.z,.55);
 feed(ai?(b.team==='ct'?'A teammate got a kill':'A teammate was killed'):(hd?'★ Headshot! ':'')+'Enemy down');updHud()}
@@ -1308,8 +1340,12 @@ const cat=viewCat(cur),vp=VIEW_POSE[cat]||VIEW_POSE.rifle;const gy=gun.userData.
 lyaw=P.yaw;lpit=P.pitch;swY=0;swX=0;
 const moving=P.speed>0&&(P.gnd||!world)&&!P.lad;bobA+=((moving?P.speed:0)-bobA)*Math.min(1,dt*8);if(moving)bobT+=dt*(5+4*P.speed);
 const bA=bobA*(scoped?.2:1),bx=Math.sin(bobT)*.011*bA,by=-Math.abs(Math.cos(bobT))*.013*bA;
-gun.position.set(vp.gx+bx,gy-(VM_DROP[cat]||0)+by-rl*.05+vkick*.012,vp.gz+(VIEW_Z[cur]||0)+kick*.005+vkick*.035).multiplyScalar(1/VM_ZOOM);
-gun.rotation.set((vp.tip||0)+kick*.006+rl*.12+vkick*.07+by*.6,vp.ry||0,(vp.rz||0)+bx*1.4);
+if(mouseDown||reloading>0||scoped||P.dead)inspT=0;
+let ix=0,iy=0,irx=0,iry=0,irz=0;
+if(inspT>0){inspT-=dt;const p=1-inspT/INSPECT,sm=t=>t<=0?0:t>=1?1:t*t*(3-2*t),e=sm(p/.15)*(1-sm((p-.85)/.15)),s=sm((p-.15)/.7);
+ix=-.06*e;iy=.04*e;irx=-.15*e;iry=e*(.8-1.4*s);irz=e*.35*Math.sin(Math.PI*s)}
+gun.position.set(vp.gx+bx+ix,gy-(VM_DROP[cat]||0)+by+iy-rl*.05+vkick*.012,vp.gz+(VIEW_Z[cur]||0)+kick*.005+vkick*.035).multiplyScalar(1/VM_ZOOM);
+gun.rotation.set((vp.tip||0)+irx+kick*.006+rl*.12+vkick*.07+by*.6,(vp.ry||0)+iry,(vp.rz||0)+irz+bx*1.4);
 const wantKey=handPlateKey(cat);
 if(viewGlove&&viewGlove.parent===gun){if(gun.userData.viewCat!==cat)mountViewHands()}
 else if(!viewHandPlate||viewHandPlate.userData.handKey!==wantKey||gun.userData.viewCat!==cat||gloveState==='ready')mountViewHands();
@@ -1318,7 +1354,7 @@ if(viewHandPlate.geometry){const nw=vp.psx||.9,nh=vp.psy||.85;if(Math.abs(viewHa
 if(viewGlove)viewGlove.visible=gun.visible;if(viewHandPlate)viewHandPlate.visible=gun.visible;
 }
 const sc=(.6+P.speed*1.6+Math.min(recoil,W[cur].sc||8)*W[cur].rs*40)*(crouch?.75:1);$('cross').style.display=scoped?'none':'';$('cross').style.transform='scale('+sc+')';
-pp.set(P.x,P.y+P.h-.1,P.z);updBots(dt);syncNetplay(dt);
+pp.set(P.x,P.y+P.h-.1,P.z);updBots(dt);updDrops(dt);syncNetplay(dt);
 if(freezeT>0){freezeT-=dt;if(freezeT<=0){freezeT=0;feed('Move! Buy open '+(Math.ceil(buyT))+'s');updHud()}}
 if(buyT>0){buyT-=dt;if(buyT<=0){buyT=0;closeBuy();feed('Buy time over');updHud()}else if(freezeT<=0)updHud()}
 if(roundTimer>0){roundTimer-=dt;if(roundTimer<=0){round++;startRound()}}
