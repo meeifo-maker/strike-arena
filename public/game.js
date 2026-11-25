@@ -83,6 +83,15 @@ function hits(x,z,r,y){if(world)return world.blocked(x,z,r,(y||0)+world.STEP,(y|
 function move(o,dx,dz,r){if(world){const px=o.x,pz=o.z,y=o.y||0;o.x+=dx;o.z+=dz;world.push(o,r,y+world.STEP,y+(o===P&&crouch?1.15:1.7));
 // Never step over a spot with no floor at all (inside a wall/prop shell or off the map): you'd fall out of the world
 if(world.ground(o.x,o.z,y+world.STEP)<-1e8&&world.ground(px,pz,y+world.STEP)>-1e8){o.x=px;o.z=pz}return}if(!hits(o.x+dx,o.z,r,o.y))o.x+=dx;if(!hits(o.x,o.z+dz,r,o.y))o.z+=dz}
+// Wedged inside geometry (walls push back every step): hop to the nearest open floor, else respawn
+let stuckT=0;
+function unstick(o){if(!world)return;const y=o.y||0;
+// Pressing into a wall isn't stuck: only act when no direction at all is open
+for(let a=0;a<8;a++){const x=o.x+Math.cos(a*Math.PI/4)*.3,z=o.z+Math.sin(a*Math.PI/4)*.3,g=world.ground(x,z,y+world.STEP);
+if(g>-1e8&&!world.blocked(x,z,.4,g+world.STEP,g+1.7))return}
+for(let rad=.5;rad<=5;rad+=.5)for(let a=0;a<16;a++){const x=o.x+Math.cos(a*Math.PI/8)*rad,z=o.z+Math.sin(a*Math.PI/8)*rad,g=world.ground(x,z,y+1.5);
+if(g>-1e8&&g>y-4&&!world.blocked(x,z,.45,g+world.STEP,g+1.7)){o.x=x;o.z=z;o.y=g;o.vy=0;return}}
+const sp=takeSpot(online?myTeam:'t');if(sp){o.x=sp[0];o.y=sp[1];o.z=sp[2];o.vy=0}}
 // Ladder whose climb zone contains feet position (x,y,z); `dir` gets the unit vector from the player toward the rungs
 function ladderAt(x,y,z,dir,cur){if(!world||!world.ladders)return null;for(const L of cur?[cur].concat(world.ladders):world.ladders){const[lx,lz,ax,w,y0,y1]=L;
 const t=ax?z-lz:x-lx,n=ax?x-lx:z-lz;if(Math.abs(t)>w/2+.1||Math.abs(n)>.75||y<y0-.9||y>y1+1.35)continue;
@@ -1245,7 +1254,8 @@ const lad=!P.dead&&ladCd<=0?ladderAt(P.x,P.y,P.z,ldir,P.lad):null;
 if(!lad)P.lad=null;else if(P.lad)P.lad=lad;else if(fz<0&&-Math.sin(P.yaw)*ldir.x-Math.cos(P.yaw)*ldir.z>.35){P.lad=lad;P.ldx=ldir.x;P.ldz=ldir.z}
 const sp=(crouch?1.7:(walk?2.6:5.2))*W[cur].spd*(P.lad?.4:1);
 if(fx||fz){const l=Math.hypot(fx,fz);fx/=l;fz/=l;
-const c=Math.cos(P.yaw),s=Math.sin(P.yaw);move(P,(fx*c+fz*s)*sp*dt,(-fx*s+fz*c)*sp*dt,.4);P.speed=crouch?.35:(walk?.5:1);if(!walk&&!crouch){stepT-=dt;if(stepT<=0){stepT=.36;snd(.12,.05,500)}}}else P.speed=0;
+const c=Math.cos(P.yaw),s=Math.sin(P.yaw),ox=P.x,oz=P.z;move(P,(fx*c+fz*s)*sp*dt,(-fx*s+fz*c)*sp*dt,.4);
+if(!P.lad&&Math.hypot(P.x-ox,P.z-oz)<sp*dt*.05){stuckT+=dt;if(stuckT>.75){stuckT=0;unstick(P)}}else stuckT=0;P.speed=crouch?.35:(walk?.5:1);if(!walk&&!crouch){stepT-=dt;if(stepT<=0){stepT=.36;snd(.12,.05,500)}}}else P.speed=0;
 recoil=Math.max(0,recoil-dt*(mouseDown?3:9));
 fireCd-=dt;kick=Math.max(0,kick-dt*10);vkick*=Math.exp(-dt*9);
 if(reloading>0){reloading-=dt;if(reloading<=0){const n=Math.min(W[cur].mag-ammo,reserve);ammo+=n;reserve-=n;reloading=0;updHud()}}
