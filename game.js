@@ -122,7 +122,12 @@ awp:{n:'AWP',price:4750,slot:1,mag:5,res:30,rate:1.46,auto:false,dmg:115,base:.0
 // ---------- Skins + coins. Coins are only earned in offline bot matches; equipped skins are sent to online opponents ----------
 const SKIN_CATS=[['Pistols',['glock','deagle']],['SMGs',['mp9']],['Rifles',['ak','m4']],['Snipers',['awp']],['Knives',['knife']]];
 // skin: {id,name,value, tint?:'#rrggbb', tex?:'assets/skins/....jpg'} — a skin with neither keeps the stock look
+// model: replaces the weapon's mesh (fix = extra hold rotation for that model)
 const SKINS={};for(const [,ids] of SKIN_CATS)for(const id of ids)SKINS[id]=[{id:'base',name:'Base',value:0}];
+SKINS.knife.push({id:'scary',name:'Scary Knife',value:300,model:'assets/skins/knife-scary.glb',fix:{ry:Math.PI,rz:-Math.PI/2,z:.25}});
+const SKIN_TPL={},skinLoading={};
+function skinModel(id){const k=skinDef(id,vmSkin(id));if(!k||!k.model)return null;if(SKIN_TPL[k.model])return SKIN_TPL[k.model];
+  if(!skinLoading[k.model]&&THREE.GLTFLoader){skinLoading[k.model]=1;fetch(k.model).then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(parseGlb).then(g=>{SKIN_TPL[k.model]=prepareWeapon(g.scene,WEAPON_FILES[id]?WEAPON_FILES[id].kind:'knife',id);if(vmId()===id)buildModel(id)}).catch(e=>{console.warn('skin load failed',k.model,e);skinLoading[k.model]=0})}return null}
 const COIN={kill:2,round:5,match:100};
 let prof={coins:0,owned:{},eq:{}};try{const p=JSON.parse(localStorage.getItem('strikeProfile')||'null');if(p&&typeof p==='object')prof=Object.assign(prof,p)}catch(e){}
 function saveProf(){try{localStorage.setItem('strikeProfile',JSON.stringify(prof))}catch(e){}}
@@ -162,13 +167,13 @@ function cloneWeapon(tpl){return tpl.clone(true)}
 let ctSkinTpl=null,tSkinTpl=null,ctSkinState='loading',tSkinState='loading';
 // Extra hold pose after auto-fit (pitch/yaw/roll). Tune per-weapon in preview.
 const WEAPON_FIX={glock:{rx:0,ry:0,rz:0},deagle:{rx:0,ry:0,rz:0},mp9:{rx:0,ry:0,rz:0},m4:{rx:0,ry:0,rz:0},ak:{rx:0,ry:0,rz:0},awp:{rx:0,ry:0,rz:0},he:{rx:0,ry:0,rz:0},flash:{rx:0,ry:0,rz:0},smoke:{rx:0,ry:0,rz:0}};
-function placeLoadedWeapon(id){const tpl=WEAPON_TPL[id];if(!tpl)return false;const w=cloneWeapon(tpl);
+function placeLoadedWeapon(id){const sk=skinDef(id,vmSkin(id)),tpl=skinModel(id)||WEAPON_TPL[id];if(!tpl)return false;const w=cloneWeapon(tpl);
 const want={ak:.6,m4:.6,awp:.7,mp9:.42,deagle:.2,glock:.18,he:.1,flash:.1,smoke:.1,knife:.3}[id]||.36;
 const base=tpl.userData.lenZ||.5;w.scale.multiplyScalar(want/base);
-const f=WEAPON_FIX[id]||{};const hold=new THREE.Group();hold.add(w);
+const f=(tpl!==WEAPON_TPL[id]&&sk&&sk.fix)||WEAPON_FIX[id]||{};const hold=new THREE.Group();hold.add(w);
 const cat=viewCat(id),vp=VIEW_POSE[cat]||VIEW_POSE.rifle;
 hold.rotation.set(f.rx||0,f.ry||0,f.rz||0);
-const off=vp.hold||[0,0,0];hold.position.set(off[0],off[1],off[2]);
+const off=vp.hold||[0,0,0];hold.position.set(off[0],off[1],off[2]);hold.position.x+=f.x||0;hold.position.y+=f.y||0;hold.position.z+=f.z||0;
 gun.add(hold);gun.add(flash);
 flash.position.set(0,.02,-want*.55);gun.scale.setScalar(1);gun.userData.loaded=true;gun.userData.viewCat=cat;return true}
 function viewCat(id){if(id==='awp')return'sniper';if(id==='mp9')return'smg';if(id==='glock'||id==='deagle')return'pistol';if(id==='he'||id==='flash'||id==='smoke')return'nade';if(id==='knife')return'knife';return'rifle'}
@@ -1236,7 +1241,7 @@ const L=u.legs,S=u.shins;L[0].rotation.x=w;L[1].rotation.x=-w;S[0].rotation.x=-M
 u.rig.position.y=mv?Math.abs(Math.sin(t*5.9+b.sd*3))*.025:Math.sin(t*1.6+b.sd)*.004;u.rig.rotation.z=mv?Math.sin(t*5.9+b.sd*3)*.02:0}
 // Per-round shuffled standable spots around each team's map spawn
 let spawnPools=null;
-function makeSpawnPools(){spawnPools=null;if(!world)return;spawnPools={};const rnd=Math.random;if(party){let sd=round*7919+13;Math.random=()=>((sd=(sd*9301+49297)%233280)/233280)}try{for(const team of ['t','ct']){const s=spawnOf(team),p=world.spotsNear(s.x,s.y,s.z,s.r,14,1.3);spawnPools[team]=p.length?p:[[s.x,s.y,s.z]]}}finally{Math.random=rnd}}
+function makeSpawnPools(){spawnPools=null;if(!world)return;spawnPools={};const rnd=Math.random;if(party){let sd=round*7919+13;Math.random=()=>((sd=(sd*9301+49297)%233280)/233280)}try{for(const team of ['t','ct']){const s=spawnOf(team),p=[];for(const q of world.spotsNear(s.x,s.y,s.z,s.r,40,1.3)){if(p.length>=14)break;if(world.findPath(q[0],q[1],q[2],s.x,s.y,s.z))p.push(q)}spawnPools[team]=p.length?p:[[s.x,s.y,s.z]]}}finally{Math.random=rnd}}
 function takeSpot(team){const p=spawnPools&&spawnPools[team];if(!p)return null;return p.length>1?p.shift():p[0]}
 function spawnYaw(team,x,z){const s=spawnOf(team);return s?Math.atan2(x-s.look[0],z-s.look[1]):0}
 function placeBot(b,sp){b.x=sp[0];b.z=sp[2];b.y=sp[1];b.vy=0;b.path=null;b.g.position.set(b.x,b.y,b.z);b.g.rotation.y=spawnYaw(b.team,b.x,b.z)+Math.PI}
