@@ -143,7 +143,34 @@ body.play,body.play *{cursor:none!important}
 #party button:disabled{opacity:.45;cursor:default}
 #party #pt-copy,#party #pt-start,#party #pt-go{background:var(--accent);color:#111;border-color:var(--accent)}
 #party .st{min-height:1.4em;color:#ffb02e;font-weight:700}
+#intro{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#000;opacity:1;pointer-events:auto;transition:opacity .5s ease}
+#intro.out{opacity:0;pointer-events:none}
+#intro .card{position:relative;z-index:2;padding:clamp(18px,3.2vw,34px) clamp(28px,5vw,64px);background:#c41218;color:#000;font:900 clamp(18px,3.4vw,34px)/1.15 system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;box-shadow:0 0 0 3px #000,0 18px 50px rgba(0,0,0,.65);transform:scale(.92);opacity:0;transition:transform .5s cubic-bezier(.2,1.2,.3,1),opacity .45s ease}
+#intro.on .card{transform:scale(1);opacity:1}
+#intro .gun{position:absolute;right:clamp(1%,3vw,5%);top:50%;width:clamp(160px,32vw,320px);transform:translateY(-42%);z-index:1;filter:drop-shadow(0 10px 18px rgba(0,0,0,.7));opacity:0;transition:opacity .5s ease .15s}
+#intro.on .gun{opacity:1}
+#intro .gun svg{display:block;width:100%;height:auto;transform-origin:78% 55%}
+#intro .gun.kick svg{animation:introKick .2s ease-out}
+#intro .muzzle{position:absolute;left:-2%;top:38%;width:28%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(255,255,220,1) 0%,rgba(255,180,60,.9) 28%,rgba(255,70,0,.45) 55%,transparent 72%);opacity:0;pointer-events:none;transform:scale(.3);mix-blend-mode:screen}
+#intro .gun.kick .muzzle{animation:introFlash .25s ease-out}
+@keyframes introKick{0%{transform:rotate(0) translateX(0)}30%{transform:rotate(9deg) translateX(12%)}100%{transform:rotate(0) translateX(0)}}
+@keyframes introFlash{0%{opacity:0;transform:scale(.25)}18%{opacity:1;transform:scale(1.55)}100%{opacity:0;transform:scale(.5)}}
 </style></head><body>
+<div id="intro" aria-hidden="true">
+  <div class="card">Random Games Productions</div>
+  <div class="gun" id="intro-gun">
+    <span class="muzzle"></span>
+    <svg viewBox="0 0 220 90" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path fill="#d8d8d8" d="M12 38h118l8-6h28l6 6h18v10H12z"/>
+      <path fill="#bdbdbd" d="M12 48h138v8H20l-8-4z"/>
+      <path fill="#9a9a9a" d="M148 32h18v6h-18zM168 34h22v14h-10l-4-4h-8z"/>
+      <path fill="#6e6e6e" d="M150 56h22l6 28h-16l-4-16h-12z"/>
+      <path fill="#4a4a4a" d="M156 62h10v18h-6z"/>
+      <circle cx="18" cy="43" r="3.2" fill="#333"/>
+      <rect x="2" y="40" width="12" height="6" rx="1" fill="#888"/>
+    </svg>
+  </div>
+</div>
 <div id="cross"><i class="h l"></i><i class="h r"></i><i class="v t"></i><i class="v b"></i></div>
 <div id="hit"></div><div id="dmg"></div><div id="fl"></div><div id="vig"></div><div id="scope"></div><div id="buy"></div><div id="bar"></div><div class="box" id="money">$800</div>
 <div class="box" id="hp">♥ 100</div>
@@ -239,4 +266,43 @@ body.play,body.play *{cursor:none!important}
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="netplay.js?v=peer9"></script>
 <script src="mapworld.js?v=map1"></script>
-<script src="game.js?v=code30"></script></body></html>
+<script src="game.js?v=code31"></script>
+<script>
+(function(){
+  const el=document.getElementById('intro'),gun=document.getElementById('intro-gun');
+  if(!el||!gun)return;
+  let ac=null,done=false;
+  function bang(){
+    gun.classList.remove('kick');void gun.offsetWidth;gun.classList.add('kick');
+    try{
+      ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+      if(ac.state==='suspended')ac.resume();
+      const n=ac.sampleRate*.18|0,buf=ac.createBuffer(1,n,ac.sampleRate),d=buf.getChannelData(0);
+      for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2.4);
+      const src=ac.createBufferSource();src.buffer=buf;
+      const f=ac.createBiquadFilter();f.type='lowpass';f.frequency.value=1800;
+      const g=ac.createGain();g.gain.setValueAtTime(.55,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.18);
+      src.connect(f);f.connect(g);g.connect(ac.destination);src.start();
+      const o=ac.createOscillator(),og=ac.createGain(),at=ac.currentTime;
+      o.type='sawtooth';o.frequency.setValueAtTime(220,at);o.frequency.exponentialRampToValueAtTime(55,at+.12);
+      og.gain.setValueAtTime(.28,at);og.gain.exponentialRampToValueAtTime(.001,at+.14);
+      o.connect(og);og.connect(ac.destination);o.start();o.stop(at+.15);
+    }catch(e){}
+  }
+  function finishIntro(){
+    if(done)return;done=true;
+    el.classList.add('out');
+    setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el)},550);
+  }
+  // card/gun fade in, two shots, then whole splash fades out — ~4.5s
+  requestAnimationFrame(function(){el.classList.add('on')});
+  setTimeout(bang,900);
+  setTimeout(bang,1700);
+  setTimeout(finishIntro,4000);
+  document.addEventListener('pointerdown',function unlock(){
+    try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();ac.resume()}catch(e){}
+    document.removeEventListener('pointerdown',unlock);
+  },{once:true});
+})();
+</script>
+</body></html>
