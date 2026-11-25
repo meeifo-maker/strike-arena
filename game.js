@@ -124,7 +124,7 @@ const SKIN_CATS=[['Pistols',['glock','deagle']],['SMGs',['mp9']],['Rifles',['ak'
 // skin: {id,name,value, tint?:'#rrggbb', metal?, rough?, tex?:'assets/skins/....jpg'} — a skin with neither keeps the stock look
 // model: replaces the weapon's mesh (fix = extra hold rotation for that model)
 const SKINS={};for(const [,ids] of SKIN_CATS)for(const id of ids)SKINS[id]=[{id:'base',name:'Base',value:0}];
-SKINS.knife.push({id:'scary',name:'Scary Knife',value:300,model:'assets/skins/knife-scary.glb',tint:'#e8b830',metal:.6,rough:.35,fix:{rz:Math.PI/2,z:-.16,y:-.035}});
+SKINS.knife.push({id:'scary',name:'Scary Knife',value:300,model:'assets/skins/knife-scary.glb?v=2',tint:'#e8b830',metal:.6,rough:.35,fix:{rz:Math.PI/2,z:-.16,y:-.035}});
 const SKIN_TPL={},skinLoading={};
 function skinModel(id){const k=skinDef(id,vmSkin(id));if(!k||!k.model)return null;if(SKIN_TPL[k.model])return SKIN_TPL[k.model];
   if(!skinLoading[k.model]&&THREE.GLTFLoader){skinLoading[k.model]=1;fetch(k.model).then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(parseGlb).then(g=>{SKIN_TPL[k.model]=prepareWeapon(g.scene,WEAPON_FILES[id]?WEAPON_FILES[id].kind:'knife',id);if(vmId()===id)buildModel(id)}).catch(e=>{console.warn('skin load failed',k.model,e);skinLoading[k.model]=0})}return null}
