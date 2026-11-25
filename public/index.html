@@ -96,6 +96,14 @@ body.play,body.play *{cursor:none!important}
 #mm .sk-info button{margin-top:2px;padding:8px;border-radius:5px;border:1px solid #555;background:#2a2e36;color:#f2f2f2;font-weight:800;letter-spacing:1px;text-transform:uppercase;font-size:12px;cursor:pointer}
 #mm .sk-info button.buy{background:var(--accent);color:#111;border-color:var(--accent)}
 #mm .sk-info button:disabled{opacity:.5;cursor:default}
+#mm .sk-em{flex:1}#mm .sk-em h4{margin:0 0 4px;font-size:18px;letter-spacing:1px}#mm .sk-em p{margin:0 0 12px;font-size:13px;opacity:.7}#mm .sk-em p b{color:var(--accent)}
+#mm .sk-egrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+#mm .sk-prev.em{font-size:44px;color:#fff}
+#emw{position:fixed;left:50%;top:50%;width:340px;height:340px;margin:-170px 0 0 -170px;border-radius:50%;display:none;z-index:30;pointer-events:none;background:radial-gradient(circle,rgba(8,10,14,.5) 0 27%,rgba(8,10,14,.82) 28%);border:2px solid rgba(255,176,46,.5)}
+#emw .it{position:absolute;width:78px;height:78px;margin:-39px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:50%;font-size:30px;transition:transform .08s,background .08s}
+#emw .it small{font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+#emw .it.on{background:rgba(255,176,46,.9);color:#111;transform:scale(1.15)}
+#emw #emw-n{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;font-size:14px;letter-spacing:2px;text-transform:uppercase}
 #ov-back{margin-top:18px;padding:8px 16px;font-size:14px;font-weight:700;background:#2a2e36;color:#f2f2f2;border:1px solid #555;border-radius:6px;cursor:pointer;pointer-events:auto}
 #lobby{position:fixed;inset:0;z-index:46;display:none;align-items:center;justify-content:center;background:rgba(5,7,10,.88);padding:24px;text-align:center}
 #lobby .card{width:min(460px,94vw);padding:28px 24px;background:rgba(8,10,14,.96);border:1px solid rgba(255,176,46,.45);border-radius:10px}
@@ -143,7 +151,7 @@ body.play,body.play *{cursor:none!important}
 <div class="box" id="info">Round 1 · Enemies 0 · Kills 0</div>
 <div class="box" id="rkills">0</div>
 <div class="box" id="feed"></div>
-<div id="winban"><span></span></div>
+<div id="winban"><span></span></div><div id="emw"></div>
 <div id="mm">
   <div class="top">
     <div class="logo">STRIKE<span>:</span> ARENA</div>
@@ -231,4 +239,4 @@ body.play,body.play *{cursor:none!important}
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="netplay.js?v=peer9"></script>
 <script src="mapworld.js?v=map1"></script>
-<script src="game.js?v=code26"></script></body></html>
+<script src="game.js?v=code27"></script></body></html>
