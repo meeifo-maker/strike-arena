@@ -133,7 +133,7 @@ let ctSkinTpl=null,tSkinTpl=null,ctSkinState='loading',tSkinState='loading';
 // Extra hold pose after auto-fit (pitch/yaw/roll). Tune per-weapon in preview.
 const WEAPON_FIX={glock:{rx:0,ry:0,rz:0},deagle:{rx:0,ry:0,rz:0},mp9:{rx:0,ry:0,rz:0},m4:{rx:0,ry:0,rz:0},ak:{rx:0,ry:0,rz:0},awp:{rx:0,ry:0,rz:0},he:{rx:0,ry:0,rz:0},flash:{rx:0,ry:0,rz:0},smoke:{rx:0,ry:0,rz:0}};
 function placeLoadedWeapon(id){const tpl=WEAPON_TPL[id];if(!tpl)return false;const w=cloneWeapon(tpl);
-const want={ak:.6,m4:.6,awp:.7,mp9:.42,deagle:.2,glock:.18,he:.1,flash:.1,smoke:.1}[id]||.36;
+const want={ak:.6,m4:.6,awp:.7,mp9:.42,deagle:.2,glock:.18,he:.1,flash:.1,smoke:.1,knife:.3}[id]||.36;
 const base=tpl.userData.lenZ||.5;w.scale.multiplyScalar(want/base);
 const f=WEAPON_FIX[id]||{};const hold=new THREE.Group();hold.add(w);
 const cat=viewCat(id),vp=VIEW_POSE[cat]||VIEW_POSE.rifle;
@@ -150,7 +150,7 @@ smg:{gx:.21,gy:-.17,gz:-.3,tip:.02,hold:[0,0,0],hx:.15,hy:-.33,hz:-.4,psx:.22,ps
 rifle:{gx:.22,gy:-.15,gz:-.3,tip:.02,hold:[0,0,0],hx:.16,hy:-.327,hz:-.4,psx:.23,psy:.46,over:1},
 sniper:{gx:.23,gy:-.19,gz:-.34,tip:.015,hold:[0,0,0],hx:.17,hy:-.33,hz:-.4,psx:.23,psy:.46,over:1},
 nade:{gx:.12,gy:-.07,gz:-.3,tip:-.04,hx:.1,hy:-.46,hz:-.38,psx:.85,psy:.78},
-knife:{gx:.17,gy:-.15,gz:-.3,tip:.02,hx:.1,hy:-.46,hz:-.36,psx:.8,psy:.75}
+knife:{gx:.1,gy:-.06,gz:-.27,tip:.6,ry:1,hx:.1,hy:-.46,hz:-.36,psx:.8,psy:.75}
 };
 const VIEW_Z={ak:.14};
 // Pulling the whole viewmodel (gun + gloves) toward the camera by this factor scales it on screen without moving its anchor
@@ -171,7 +171,8 @@ smg:{L:{at:[0,.005,-.09],f:[.55,.25,-.8],p:[-.2,1,0]}},
 rifle:{L:{mag:1,at:[0,-.06,-.02],up:[0,.88,.47],p:[1,0,0]}},
 sniper:{L:{at:[0,.01,-.16],f:[.55,.25,-.8],p:[-.2,1,0]}},
 nade:{R:{at:[0,-.01,.02],f:[-.1,.3,-.95],p:[-1,0,0]}},
-knife:{R:{at:[0,-.01,.02],f:[-.1,.3,-.95],p:[-1,0,0]}}};
+// knife: blade swung up-left, right fist round the handle, open left hand low on the left of the screen
+knife:{R:{at:[0,0,.1],f:[.7,.7,0],p:[1,-1,0]},O:{cam:1,at:[-.19,-.16,-.27],f:[.3,.9,-.3],p:[.5,0,-.8]}}};
 // knuckle line height, finger centre-line x and curl radius, in the model's rest-pose units
 const ARM_SCALE=.42,ARM_KN=.285,ARM_FX=.025,ARM_CR=.075;
 let gloveTpl=null,gloveState='idle',viewGlove=null;
@@ -183,13 +184,14 @@ const geo=src.geometry.clone();geo.applyMatrix4(src.matrixWorld);
 const pos=geo.attributes.position,idx=geo.index?geo.index.array:null,tri=idx?idx.length/3:pos.count/3;
 const root=new THREE.Group();root.name='arms';root.userData={viewHands:true,arms:{},cat:null};
 // rest pose: right arm on -Z, left arm on +Z, fingers along +Y, palms facing -X
-for(const s of ['R','L']){const keep=[];
-for(let t=0;t<tri;t++){const a=idx?idx[t*3]:t*3,b=idx?idx[t*3+1]:t*3+1,c=idx?idx[t*3+2]:t*3+2;if((pos.getZ(a)+pos.getZ(b)+pos.getZ(c)<0)===(s==='R'))keep.push(a,b,c)}
+// O = open left hand (fingers straight, thumb kept) for poses where it isn't gripping anything
+for(const s of ['R','L','O']){const keep=[],side=s==='O'?'L':s,open=s==='O';
+for(let t=0;t<tri;t++){const a=idx?idx[t*3]:t*3,b=idx?idx[t*3+1]:t*3+1,c=idx?idx[t*3+2]:t*3+2;if((pos.getZ(a)+pos.getZ(b)+pos.getZ(c)<0)===(side==='R'))keep.push(a,b,c)}
 let cz=0,n=0;for(const i of keep)if(pos.getY(i)>ARM_KN){cz+=pos.getZ(i);n++}cz/=n||1;
 // drop the thumb: it can't bend, and in every grip it pokes through the gun
-const sg=s==='R'?1:-1,thumb=i=>{const y=pos.getY(i);return y>.08&&y<.34&&(pos.getZ(i)-cz)*sg>.13},hand=[];
-for(let t=0;t<keep.length;t+=3)if(!thumb(keep[t])&&!thumb(keep[t+1])&&!thumb(keep[t+2]))hand.push(keep[t],keep[t+1],keep[t+2]);
-const g=geo.clone();stretchSleeve(g);curlFingers(g);g.setIndex(hand);g.translate(-(ARM_FX-ARM_CR),-ARM_KN,-cz);
+const sg=side==='R'?1:-1,thumb=i=>{const y=pos.getY(i);return y>.08&&y<.34&&(pos.getZ(i)-cz)*sg>.13},hand=[];
+for(let t=0;t<keep.length;t+=3)if(open||!thumb(keep[t])&&!thumb(keep[t+1])&&!thumb(keep[t+2]))hand.push(keep[t],keep[t+1],keep[t+2]);
+const g=geo.clone();stretchSleeve(g);if(!open)curlFingers(g);g.setIndex(hand);g.translate(-(ARM_FX-ARM_CR),-ARM_KN,-cz);
 const mesh=new THREE.Mesh(g,src.material);mesh.frustumCulled=false;mesh.renderOrder=6;mesh.scale.setScalar(ARM_SCALE);
 const pivot=new THREE.Group();pivot.add(mesh);root.add(pivot);root.userData.arms[s]=pivot}
 return root}
@@ -220,8 +222,13 @@ awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]}},
 // right hand on the magazine grip, left on the front vertical grip
 mp9:{R:{at:[0,-.045,-.05],f:[-.1,.4,-.9],p:[-1,0,0]},L:{at:[0,-.01,-.168],f:[.35,.35,-.87],p:[1,0,.4]}}};
 function poseArms(cat){if(!viewGlove)return;const u=viewGlove.userData,key=cat+':'+cur;if(u.cat===key)return;u.cat=key;
-const B=ARM_POSE[cat]||ARM_POSE.rifle,X=ARM_WPN[cur]||{},P={};for(const s of ['L','R'])if(X[s]!==null&&(B[s]||X[s]))P[s]=Object.assign({},B[s],X[s]);
-for(const s of ['L','R']){const pv=u.arms[s],c=P[s];if(!pv)continue;pv.visible=!!c;if(!c)continue;
+const B=ARM_POSE[cat]||ARM_POSE.rifle,X=ARM_WPN[cur]||{},P={};for(const s of ['L','R','O'])if(X[s]!==null&&(B[s]||X[s]))P[s]=Object.assign({},B[s],X[s]);
+for(const s of ['L','R','O']){const pv=u.arms[s],c=P[s];if(!pv)continue;pv.visible=!!c;if(!c)continue;
+// cam: at/f/p are in camera space (screen-anchored), so undo the gun's rest pose
+if(c.cam){const vp=VIEW_POSE[cat]||VIEW_POSE.rifle,q=new THREE.Quaternion().setFromEuler(new THREE.Euler(vp.tip||0,vp.ry||0,vp.rz||0)).invert(),
+o=new THREE.Vector3(vp.gx,vp.gy-(VM_DROP[cat]||0),vp.gz+(VIEW_Z[cur]||0)).multiplyScalar(1/VM_ZOOM);
+pv.position.fromArray(c.at).sub(o).applyQuaternion(q);_ay.fromArray(c.f).normalize().applyQuaternion(q);_ax.fromArray(c.p).applyQuaternion(q);
+_ax.addScaledVector(_ay,-_ax.dot(_ay)).normalize().negate();_az.crossVectors(_ax,_ay);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);continue}
 if(c.up){const g=c.mag&&magGrip(),at=g?g.at:c.at;_ax.fromArray(c.p).negate().normalize();_az.fromArray(g?g.up:c.up).multiplyScalar(s==='L'?-1:1);_az.addScaledVector(_ax,-_az.dot(_ax)).normalize();
 _ay.crossVectors(_az,_ax);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);pv.position.fromArray(at);continue}
 _ay.fromArray(c.f).normalize();_ax.fromArray(c.p);_ax.addScaledVector(_ay,-_ax.dot(_ay)).normalize().negate();
@@ -436,7 +443,7 @@ function afterLoss(){P.x=0;P.z=25;P.yaw=0;P.pitch=0;P.hp=100;armor=0;nades={he:0
 function captureGunTemplate(id){while(gun.children.length)gun.remove(gun.children[0]);const BD={ak:buildAK,m4:buildM4};if(BD[id])BD[id]();const tpl=new THREE.Group();[...gun.children].forEach(c=>{gun.remove(c);if(c===flash)return;tpl.add(c)});gun.add(flash);gun.scale.setScalar(1);const kill=[];tpl.traverse(o=>{if(o.isMesh&&(o.material===MT.g||o.material===MT.l))kill.push(o)});kill.forEach(o=>{if(o.parent)o.parent.remove(o)});return tpl}
 const BOT_GUN_TPL={ak:captureGunTemplate('ak'),m4:captureGunTemplate('m4')};
 const WEAPON_TPL={};let weaponsLeft=0,weaponsState='loading';
-const WEAPON_FILES={glock:{file:'glock.glb',kind:'pistol',key:'wpn-glock-v1'},ak:{file:'ak.glb',kind:'rifle',key:'wpn-ak-v3'},m4:{file:'m4.glb',kind:'rifle',key:'wpn-m4-v3'},deagle:{file:'deagle.glb',kind:'pistol',key:'wpn-deagle-v3'},awp:{file:'awp.glb',kind:'rifle',key:'wpn-awp-v3'},mp9:{file:'mp9.glb',kind:'smg',key:'wpn-mp9-v3'},he:{file:'he.glb',kind:'nade',key:'wpn-he-v3'},flash:{file:'flash.glb',kind:'nade',key:'wpn-flash-v3'},smoke:{file:'smoke.glb',kind:'nade',key:'wpn-smoke-v3'}};
+const WEAPON_FILES={glock:{file:'glock.glb',kind:'pistol',key:'wpn-glock-v1'},ak:{file:'ak.glb',kind:'rifle',key:'wpn-ak-v3'},m4:{file:'m4.glb',kind:'rifle',key:'wpn-m4-v3'},deagle:{file:'deagle.glb',kind:'pistol',key:'wpn-deagle-v3'},awp:{file:'awp.glb',kind:'rifle',key:'wpn-awp-v3'},mp9:{file:'mp9.glb',kind:'smg',key:'wpn-mp9-v3'},he:{file:'he.glb',kind:'nade',key:'wpn-he-v3'},flash:{file:'flash.glb',kind:'nade',key:'wpn-flash-v3'},smoke:{file:'smoke.glb',kind:'nade',key:'wpn-smoke-v3'},knife:{file:'knife.glb',kind:'knife',key:'wpn-knife-ct-v1'}};
 buildModel('glock');
 const DK={fwd:'KeyW',back:'KeyS',left:'KeyA',right:'KeyD',jump:'Space',duck:'ControlLeft',walk:'ShiftLeft',fire:'Mouse0',scope:'Mouse2',reload:'KeyR',buy:'KeyB',slot1:'Digit1',slot2:'Digit2',knife:'Digit3',he:'Digit6',flash:'Digit7',smoke:'Digit8'};
 const ACT=[['fwd','Move forward'],['back','Move back'],['left','Move left'],['right','Move right'],['jump','Jump'],['duck','Duck'],['walk','Walk (quiet)'],['fire','Fire'],['scope','Scope (sniper)'],['reload','Reload'],['buy','Buy menu'],['slot1','Primary weapon'],['slot2','Pistol'],['knife','Knife'],['he','Grenade'],['flash','Flashbang'],['smoke','Smoke grenade']];
@@ -1302,7 +1309,7 @@ lyaw=P.yaw;lpit=P.pitch;swY=0;swX=0;
 const moving=P.speed>0&&(P.gnd||!world)&&!P.lad;bobA+=((moving?P.speed:0)-bobA)*Math.min(1,dt*8);if(moving)bobT+=dt*(5+4*P.speed);
 const bA=bobA*(scoped?.2:1),bx=Math.sin(bobT)*.011*bA,by=-Math.abs(Math.cos(bobT))*.013*bA;
 gun.position.set(vp.gx+bx,gy-(VM_DROP[cat]||0)+by-rl*.05+vkick*.012,vp.gz+(VIEW_Z[cur]||0)+kick*.005+vkick*.035).multiplyScalar(1/VM_ZOOM);
-gun.rotation.set((vp.tip||0)+kick*.006+rl*.12+vkick*.07+by*.6,0,bx*1.4);
+gun.rotation.set((vp.tip||0)+kick*.006+rl*.12+vkick*.07+by*.6,vp.ry||0,(vp.rz||0)+bx*1.4);
 const wantKey=handPlateKey(cat);
 if(viewGlove&&viewGlove.parent===gun){if(gun.userData.viewCat!==cat)mountViewHands()}
 else if(!viewHandPlate||viewHandPlate.userData.handKey!==wantKey||gun.userData.viewCat!==cat||gloveState==='ready')mountViewHands();
