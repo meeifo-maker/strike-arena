@@ -131,8 +131,10 @@ const SKIN_CATS=[['Pistols',['glock','deagle']],['SMGs',['mp9']],['Rifles',['ak'
 // skin: {id,name,value, tint?:'#rrggbb', metal?, rough?, tex?:'assets/skins/....jpg'} — a skin with neither keeps the stock look
 // model: replaces the weapon's mesh (fix = extra hold rotation/offset for that model, s = scale; model must be centred on its origin)
 const SKINS={};for(const [,ids] of SKIN_CATS)for(const id of ids)SKINS[id]=[{id:'base',name:'Base',value:0}];
-const SHAPE_FIX={karambit:{rz:Math.PI}};
-if(window.SKIN_DATA)for(const wid in SKIN_DATA)if(SKINS[wid])for(const k of SKIN_DATA[wid])if(!SKINS[wid].some(q=>q.id===k.id))SKINS[wid].push(k.shape&&!k.fix?Object.assign({fix:SHAPE_FIX[k.shape]},k):k);
+// Karambit hold tweaks after prepareWeapon bakes the claw orientation (ring at origin, blade in the side plane)
+const KARAMBIT_FIX={s:.7,x:.01,y:-.02,z:.02};
+if(window.SKIN_DATA)for(const wid in SKIN_DATA)if(SKINS[wid])for(const k of SKIN_DATA[wid])if(!SKINS[wid].some(q=>q.id===k.id)){
+  const o=Object.assign({},k);if(/karambit/i.test(o.model||'')&&!o.fix)o.fix=KARAMBIT_FIX;SKINS[wid].push(o)}
 // Emotes: pose(t) gives wrist targets h, elbow pole p and palm direction in rig space (+X right, +Y up, −Z forward), c = finger curl
 const HANG=s=>({h:[s*.24,.9,.03],p:[0,0,1],palm:[-s,0,0],c:.3});
 const EMOTES=[
@@ -199,14 +201,14 @@ let ctSkinTpl=null,tSkinTpl=null,ctSkinState='loading',tSkinState='loading';
 // Extra hold pose after auto-fit (pitch/yaw/roll). Tune per-weapon in preview.
 const WEAPON_FIX={glock:{rx:0,ry:0,rz:0},deagle:{rx:0,ry:0,rz:0},mp9:{rx:0,ry:0,rz:0},m4:{rx:0,ry:0,rz:0},ak:{rx:0,ry:0,rz:0},awp:{rx:0,ry:0,rz:0},he:{rx:0,ry:0,rz:0},flash:{rx:0,ry:0,rz:0},smoke:{rx:0,ry:0,rz:0}};
 function placeLoadedWeapon(id){const sk=skinDef(id,vmSkin(id)),tpl=skinModel(id)||WEAPON_TPL[id];if(!tpl)return false;const w=cloneWeapon(tpl);
-const want={ak:.6,m4:.6,awp:.7,mp9:.42,deagle:.2,glock:.18,he:.1,flash:.1,smoke:.1,knife:.3}[id]||.36;
+const want={ak:.6,m4:.6,awp:.7,mp9:.42,deagle:.2,glock:.18,he:.1,flash:.1,smoke:.1,knife:tpl.userData.karambit?.2:.3}[id]||.36;
 const base=tpl.userData.lenZ||.5;w.scale.multiplyScalar(want/base);
-const f=(tpl!==WEAPON_TPL[id]&&sk&&sk.fix)||WEAPON_FIX[id]||{};if(f.s)w.scale.multiplyScalar(f.s);const hold=new THREE.Group();hold.add(w);
+const f=(tpl!==WEAPON_TPL[id]&&sk&&sk.fix)||(tpl.userData.karambit&&KARAMBIT_FIX)||WEAPON_FIX[id]||{};if(f.s)w.scale.multiplyScalar(f.s);const hold=new THREE.Group();hold.add(w);
 const cat=viewCat(id),vp=VIEW_POSE[cat]||VIEW_POSE.rifle;
 hold.rotation.set(f.rx||0,f.ry||0,f.rz||0);
 const off=vp.hold||[0,0,0];hold.position.set(off[0],off[1],off[2]);hold.position.x+=f.x||0;hold.position.y+=f.y||0;hold.position.z+=f.z||0;
 gun.add(hold);gun.add(flash);
-flash.position.set(0,.02,-want*.55);gun.scale.setScalar(1);gun.userData.loaded=true;gun.userData.viewCat=cat;return true}
+flash.position.set(0,.02,-want*.55);gun.scale.setScalar(1);gun.userData.loaded=true;gun.userData.viewCat=cat;gun.userData.karambit=!!tpl.userData.karambit;return true}
 function viewCat(id){if(id==='awp')return'sniper';if(id==='mp9')return'smg';if(id==='glock'||id==='deagle')return'pistol';if(id==='he'||id==='flash'||id==='smoke')return'nade';if(id==='knife')return'knife';return'rifle'}
 const VIEW_POSE={
 // Gun points at crosshair. Hands are huge + low so sleeves exit the BOTTOM of the screen.
@@ -281,6 +283,8 @@ return{at:[x,y,fz+.018],up:[0,1,s]}}
 const _ax=new THREE.Vector3(),_ay=new THREE.Vector3(),_az=new THREE.Vector3(),_am=new THREE.Matrix4();
 // per-weapon overrides, merged per hand over the category pose
 const ARM_WPN={
+// fixed under the wooden handguard — mag auto-detect breaks on the older (legacy) AK skin mesh
+ak:{L:{mag:0,at:[0,.02,-.11],up:[0,.2,-1],p:[-.2,1,0]}},
 m4:{L:{at:[0,-.02,0],up:[0,1,.26],p:[1,0,0]}},
 awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]}},
 // right hand on the magazine grip, left on the front vertical grip
@@ -319,7 +323,7 @@ plate.frustumCulled=false;plate.renderOrder=vp.over?10:2;viewHandsRoot.add(plate
 if(gun){gun.traverse(o=>{if(o.isMesh&&!o.userData.viewHands){o.renderOrder=6;if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];for(const m of ms){m.depthTest=true;m.depthWrite=true;m.transparent=false}}}});gun.userData.viewCat=cat}
 window.__vh={cat,key,pos:plate.position.toArray(),size:[vp.psx,vp.psy]}}catch(err){console.warn('viewHands failed',err)}}
 function buildModel(id){buildModelRaw(id);applySkin(gun,id,vmSkin(id))}
-function buildModelRaw(id){while(gun.children.length)gun.remove(gun.children[0]);gun.userData.loaded=false;if(custom&&cfgM.id===id){gun.add(custom.root);gun.add(flash);placeCustom();scoped=false;mountViewHands();return}if(placeLoadedWeapon(id)){scoped=false;mountViewHands();return}const BD={ak:buildAK,m4:buildM4,glock:buildGlock2,deagle:buildDeagle2,mp9:buildMP9,awp:buildAWP,knife:buildKnife,he:()=>buildNade2('he'),flash:()=>buildNade2('flash'),smoke:()=>buildNade2('smoke')};scoped=false;if(BD[id])BD[id]();mountViewHands()}
+function buildModelRaw(id){while(gun.children.length)gun.remove(gun.children[0]);gun.userData.loaded=false;gun.userData.karambit=0;if(custom&&cfgM.id===id){gun.add(custom.root);gun.add(flash);placeCustom();scoped=false;mountViewHands();return}if(placeLoadedWeapon(id)){scoped=false;mountViewHands();return}const BD={ak:buildAK,m4:buildM4,glock:buildGlock2,deagle:buildDeagle2,mp9:buildMP9,awp:buildAWP,knife:buildKnife,he:()=>buildNade2('he'),flash:()=>buildNade2('flash'),smoke:()=>buildNade2('smoke')};scoped=false;if(BD[id])BD[id]();mountViewHands()}
 function setWeapon(id){if(inv[cur]){inv[cur].ammo=ammo;inv[cur].reserve=reserve}cur=id;inspT=0;swing=null;ammo=inv[id].ammo;reserve=inv[id].reserve;reloading=0;buildModel(id);updHud()}
 function cycleWeapons(dir){const owned=[];for(const k of Object.keys(W)){if(!inv[k])continue;if(W[k].nade&&(!(k in nades)||nades[k]<=0))continue;owned.push(k)}owned.sort((a,b)=>(W[a].slot-W[b].slot)||a.localeCompare(b));if(owned.length<2)return;let i=owned.indexOf(cur);if(i<0)i=0;const n=owned[(i+dir+owned.length*10)%owned.length];if(n!==cur)setWeapon(n)}
 function grainTex(){const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');x.fillStyle='#7a4220';x.fillRect(0,0,256,256);
@@ -1222,9 +1226,16 @@ function isolateLargestMesh(root){const meshes=[];root.traverse(o=>{if(o.isMesh)
 let best=null,bestV=-1;meshes.forEach(m=>{try{if(!m.geometry.boundingBox)m.geometry.computeBoundingBox();const s=m.geometry.boundingBox.getSize(new THREE.Vector3()),v=Math.max(s.x,0.001)*Math.max(s.y,0.001)*Math.max(s.z,0.001);if(v>bestV){bestV=v;best=m}}catch(e){}});
 if(!best)return;meshes.forEach(m=>{if(m!==best&&m.parent)m.parent.remove(m)})}
 function prepareWeapon(scene,kind,id){const root=new THREE.Group();root.add(scene);destskinWeapon(root);
-root.traverse(o=>{if(!o.isMesh)return;o.castShadow=true;o.frustumCulled=false;const mats=Array.isArray(o.material)?o.material:[o.material];mats.forEach(m=>{if(!m)return;if(m.map){m.map.encoding=THREE.sRGBEncoding;m.map.needsUpdate=true}m.side=THREE.DoubleSide;m.transparent=false;m.opacity=1;m.depthWrite=true;m.needsUpdate=true})});
+let isKaram=false;root.traverse(o=>{if(/karambit/i.test(o.name||''))isKaram=true;if(!o.isMesh)return;o.castShadow=true;o.frustumCulled=false;const mats=Array.isArray(o.material)?o.material:[o.material];mats.forEach(m=>{if(!m)return;if(m.map){m.map.encoding=THREE.sRGBEncoding;m.map.needsUpdate=true}m.side=THREE.DoubleSide;m.transparent=false;m.opacity=1;m.depthWrite=true;m.needsUpdate=true})});
 if(id==='smoke')isolateLargestMesh(root);
-const want=kind==='nade'?.1:kind==='pistol'?.28:kind==='smg'?.4:.5;root.userData.lenZ=fitWeaponToBox(root,want);root.userData.kind=kind;return root}
+const want=kind==='nade'?.1:kind==='pistol'?.28:kind==='smg'?.4:.5;root.userData.lenZ=fitWeaponToBox(root,want);root.userData.kind=kind;
+// After auto-fit the claw span points forward; turn it into a side-on reverse grip and put the finger-ring at the origin
+if(isKaram){root.userData.karambit=1;root.quaternion.premultiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0,Math.PI/2,Math.PI)));root.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(root),c=box.getCenter(new THREE.Vector3()),s=box.getSize(new THREE.Vector3());
+  // ring sits at the -X end of the handle after the yaw/roll above
+  root.position.x-=c.x-s.x*.42;root.position.y-=c.y;root.position.z-=c.z;root.updateMatrixWorld(true);
+  root.userData.lenZ=Math.max(s.x,s.y,s.z)}
+return root}
 function refreshBotGuns(){bots.forEach(b=>{const u=b.g&&b.g.userData;if(!u||!u.rig)return;if(u.gun&&u.gun.parent)u.gun.parent.remove(u.gun);const r=mountBotGun(u.rig,u.model,b.team,u.bones||{});u.gun=r.rg;u.fl=r.fl})}
 function onWeaponReady(id){if(id===vmId())buildModel(id);if(id==='ak'||id==='m4')refreshBotGuns()}
 function finishWeaponSlot(){weaponsLeft=Math.max(0,weaponsLeft-1);if(!weaponsLeft){weaponsState=Object.keys(WEAPON_TPL).length?'ready':'failed';if(assetsReady())markAssetsLocal()}refreshLoadUi()}
@@ -1772,7 +1783,8 @@ const swp=cat==='knife'&&!specId?swingPose(dt):(swing=null,null);if(swp){ix+=swp
 if(inspT>0){inspT-=dt;const p=1-inspT/INSPECT,sm=t=>t<=0?0:t>=1?1:t*t*(3-2*t),e=sm(p/.15)*(1-sm((p-.85)/.15)),s=sm((p-.15)/.7);
 ix=-.06*e;iy=.04*e;irx=-.15*e;iry=e*(.8-1.4*s);irz=e*.35*Math.sin(Math.PI*s)}
 gun.position.set(vp.gx+bx+ix,gy-(VM_DROP[cat]||0)+by+iy-rl*.05+vkick*.012,vp.gz+(VIEW_Z[vmId()]||0)+iz+kick*.005+vkick*.035).multiplyScalar(1/(VM_ZOOM[cat]||1));
-gun.rotation.set((vp.tip||0)+irx+kick*.006+rl*.12+vkick*.07+by*.6,(vp.ry||0)+iry,(vp.rz||0)+irz+bx*1.4);
+const kTip=gun.userData.karambit?.18:(vp.tip||0),kRy=gun.userData.karambit?.45:(vp.ry||0);
+gun.rotation.set(kTip+irx+kick*.006+rl*.12+vkick*.07+by*.6,kRy+iry,(vp.rz||0)+irz+bx*1.4);
 holdOpenHand(swp,1/(VM_ZOOM[cat]||1));
 const wantKey=handPlateKey(cat);
 if(viewGlove&&viewGlove.parent===gun){if(gun.userData.viewCat!==cat)mountViewHands()}
