@@ -131,8 +131,8 @@ const SKIN_CATS=[['Pistols',['glock','deagle']],['SMGs',['mp9']],['Rifles',['ak'
 // skin: {id,name,value, tint?:'#rrggbb', metal?, rough?, tex?:'assets/skins/....jpg'} — a skin with neither keeps the stock look
 // model: replaces the weapon's mesh (fix = extra hold rotation/offset for that model, s = scale; model must be centred on its origin)
 const SKINS={};for(const [,ids] of SKIN_CATS)for(const id of ids)SKINS[id]=[{id:'base',name:'Base',value:0}];
-// Ring at origin; 90° right + 180° down so the tip faces the floor and to the right (not at the camera)
-const KARAMBIT_FIX={s:.85,x:0,y:-.015,z:.02,rx:Math.PI,ry:Math.PI/2};
+// Keep current orientation; nudge so the ring sits in the fist
+const KARAMBIT_FIX={s:.85,x:0,y:-.01,z:.015,rx:Math.PI,ry:Math.PI/2};
 if(window.SKIN_DATA)for(const wid in SKIN_DATA)if(SKINS[wid])for(const k of SKIN_DATA[wid])if(!SKINS[wid].some(q=>q.id===k.id)){
   const o=Object.assign({},k);if(/karambit/i.test(o.model||'')&&!o.fix)o.fix=KARAMBIT_FIX;SKINS[wid].push(o)}
 // Emotes: pose(t) gives wrist targets h, elbow pole p and palm direction in rig space (+X right, +Y up, −Z forward), c = finger curl
@@ -285,15 +285,16 @@ const _ax=new THREE.Vector3(),_ay=new THREE.Vector3(),_az=new THREE.Vector3(),_a
 // per-weapon overrides, merged per hand over the category pose
 const ARM_WPN={
 // only left hand — on the wooden handguard under the barrel (no floating right-hand palm)
-// Hand planted on the LEFT of the handguard (at.x < 0), fingers aimed right into the gun — sleeve must exit screen-left
-ak:{L:{mag:0,at:[-.07,-.02,-.12],f:[.85,.2,-.45],p:[-.1,1,0]}},
+// Support hand on the LEFT of the handguard, fingers into the gun from the left — sleeve exits screen-left.
+// (Do NOT mirror scale.x — that flipped the sleeve back to the right.)
+ak:{L:{mag:0,at:[-.05,-.03,-.14],f:[.75,.25,-.55],p:[-.15,1,0]},R:null},
 m4:{L:{at:[0,-.02,0],up:[0,1,.26],p:[1,0,0]}},
 awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]}},
 // right hand on the magazine grip, left on the front vertical grip
 mp9:{R:{at:[0,-.045,-.05],f:[-.1,.4,-.9],p:[-1,0,0]},L:{at:[0,-.01,-.168],f:[.35,.35,-.87],p:[1,0,.4]}}};
 function poseArms(cat){if(!viewGlove)return;const u=viewGlove.userData,key=cat+':'+vmId();if(u.cat===key)return;u.cat=key;
 const B=ARM_POSE[cat]||ARM_POSE.rifle,X=ARM_WPN[vmId()]||{},P={};for(const s of ['L','R','O','K'])if(X[s]!==null&&(B[s]||X[s]))P[s]=Object.assign({},B[s],X[s]);
-for(const s of ['L','R','O','K']){const pv=u.arms[s],c=P[s];if(!pv)continue;pv.visible=!!c;if(!c)continue;
+for(const s of ['L','R','O','K']){const pv=u.arms[s],c=P[s];if(!pv)continue;pv.visible=!!c;if(!c)continue;pv.scale.x=Math.abs(pv.scale.x||1);
 // cam: at/f/p are in camera space (screen-anchored), so undo the gun's rest pose
 if(c.cam){const vp=VIEW_POSE[cat]||VIEW_POSE.rifle,q=new THREE.Quaternion().setFromEuler(new THREE.Euler(vp.tip||0,vp.ry||0,vp.rz||0)).invert(),
 o=new THREE.Vector3(vp.gx,vp.gy-(VM_DROP[cat]||0),vp.gz+(VIEW_Z[vmId()]||0)).multiplyScalar(1/(VM_ZOOM[cat]||1));
@@ -303,9 +304,7 @@ pv.userData.camL=null;
 if(c.up){const g=c.mag&&magGrip(),at=g?g.at:c.at;_ax.fromArray(c.p).negate().normalize();_az.fromArray(g?g.up:c.up).multiplyScalar(s==='L'?-1:1);_az.addScaledVector(_ax,-_az.dot(_ax)).normalize();
 _ay.crossVectors(_az,_ax);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);pv.position.fromArray(at);continue}
 _ay.fromArray(c.f).normalize();_ax.fromArray(c.p);_ax.addScaledVector(_ay,-_ax.dot(_ay)).normalize().negate();
-_az.crossVectors(_ax,_ay);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);pv.position.fromArray(c.at)}
-// AK support arm: flip local X so the sleeve exits screen-left (reset on every other gun)
-const akL=u.arms.L;if(akL)akL.scale.x=(vmId()==='ak'?-1:1)*Math.abs(akL.scale.x||1)}
+_az.crossVectors(_ax,_ay);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);pv.position.fromArray(c.at)}}
 window.ARM_POSE=ARM_POSE;window.ARM_WPN=ARM_WPN;window.magGrip=magGrip;window.reposeArms=()=>{if(viewGlove){viewGlove.userData.cat=null;poseArms(viewCat(vmId()))}};
 function mountViewHands(){if(!camera)return;loadGloves();loadHandTextures();
 try{
