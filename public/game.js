@@ -95,7 +95,8 @@ if(g>-1e8&&g>y-4&&!world.blocked(x,z,.45,g+world.STEP,g+1.7)){o.x=x;o.z=z;o.y=g;
 const sp=takeSpot(online?myTeam:'t');if(sp){o.x=sp[0];o.y=sp[1];o.z=sp[2];o.vy=0}}
 // Ladder whose climb zone contains feet position (x,y,z); `dir` gets the unit vector from the player toward the rungs
 function ladderAt(x,y,z,dir,cur){if(!world||!world.ladders)return null;for(const L of cur?[cur].concat(world.ladders):world.ladders){const[lx,lz,ax,w,y0,y1]=L;
-const t=ax?z-lz:x-lx,n=ax?x-lx:z-lz;if(Math.abs(t)>w/2+.1||Math.abs(n)>.75||y<y0-.9||y>y1+1.35)continue;
+// reach is generous because scaffold braces often cross in front of the rungs at knee height
+const t=ax?z-lz:x-lx,n=ax?x-lx:z-lz;if(Math.abs(t)>w/2+.1||Math.abs(n)>1.1||y<y0-.9||y>y1+1.35)continue;
 if(dir){dir.x=ax?-Math.sign(n)||1:0;dir.z=ax?0:-Math.sign(n)||1}return L}return null}
 // Floor height under (x,z) reachable from height y (walks up steps, falls down ledges)
 function groundAt(x,z,y){if(world){const g=world.ground(x,z,y+world.STEP);return g>-1e8?g:world.yMin-20}return 0}
@@ -125,10 +126,6 @@ const SKIN_CATS=[['Pistols',['glock','deagle']],['SMGs',['mp9']],['Rifles',['ak'
 // skin: {id,name,value, tint?:'#rrggbb', metal?, rough?, tex?:'assets/skins/....jpg'} — a skin with neither keeps the stock look
 // model: replaces the weapon's mesh (fix = extra hold rotation/offset for that model, s = scale; model must be centred on its origin)
 const SKINS={};for(const [,ids] of SKIN_CATS)for(const id of ids)SKINS[id]=[{id:'base',name:'Base',value:0}];
-SKINS.knife.push({id:'scary',name:'Scary Knife',value:300,model:'assets/skins/knife-scary.glb?v=3',fix:{rz:Math.PI/2,z:-.125,y:-.035}});
-SKINS.glock.push({id:'usp-printstream',name:'USP-S Printstream',value:200,model:'assets/skins/usp-printstream.glb?v=1',fix:{s:1.8,z:-.08}});
-SKINS.deagle.push({id:'printstream',name:'Printstream',value:250,model:'assets/skins/deagle-printstream.glb?v=1',fix:{y:.012}});
-SKINS.m4.push({id:'printstream',name:'Printstream',value:350,model:'assets/skins/m4-printstream.glb?v=1'});
 if(window.SKIN_DATA)for(const wid in SKIN_DATA)if(SKINS[wid])for(const k of SKIN_DATA[wid])if(!SKINS[wid].some(q=>q.id===k.id))SKINS[wid].push(k);
 // Emotes: pose(t) gives wrist targets h, elbow pole p and palm direction in rig space (+X right, +Y up, −Z forward), c = finger curl
 const HANG=s=>({h:[s*.24,.9,.03],p:[0,0,1],palm:[-s,0,0],c:.3});
@@ -1710,9 +1707,10 @@ if(world&&P.lad){const v=(fz<0?1:fz>0?-1:0)*(P.pitch<-.5?-1:1)*3.4,was=P.y,L=P.l
 // climb on past the top rung up to a ledge/roof just beyond the ladder so you can step off onto it
 const fa=world.ground(L[2]?L[0]+P.ldx*.45:P.x,L[2]?P.z:L[1]+P.ldz*.45,L[5]+1.3),top=fa>L[5]-1.5?Math.max(L[5],fa):L[5];
 P.y=Math.min(P.y+v*dt,Math.max(was,top+.05));
-// rungs are too thin to collide with, so hold the player on their side of the ladder until they reach the top
-if(P.y<top-.1){const off=-.4,hw=L[3]/2;if(L[2]){if((P.x-L[0])*P.ldx>off)P.x=L[0]+off*P.ldx;P.z=Math.max(L[1]-hw,Math.min(L[1]+hw,P.z))}
-else{if((P.z-L[1])*P.ldz>off)P.z=L[1]+off*P.ldz;P.x=Math.max(L[0]-hw,Math.min(L[0]+hw,P.x))}}
+// Off the ground the player is fixed to the ladder face, so braces, rails and deck edges can't shove them out of reach;
+// standing at the bottom they're only kept from walking through the rungs, so they can still step away
+if(P.y<top-.1){const off=-.4,hw=L[3]/2,stick=v>0||!P.gnd;if(L[2]){if(stick||(P.x-L[0])*P.ldx>off)P.x=L[0]+off*P.ldx;P.z=Math.max(L[1]-hw,Math.min(L[1]+hw,P.z))}
+else{if(stick||(P.z-L[1])*P.ldz>off)P.z=L[1]+off*P.ldz;P.x=Math.max(L[0]-hw,Math.min(L[0]+hw,P.x))}}
 // scaffold ladders end beside a deck rather than under a ledge: let go at the top and drop onto it
 else if(v>0&&top===L[5]&&world.ground(P.x,P.z,P.y)>P.y-1.6){P.lad=null;ladCd=.5}
 const gr=world.ground(P.x,P.z,Math.max(was,P.y)+.05);if(P.y<=gr){P.y=gr;P.gnd=true}else P.gnd=false;
