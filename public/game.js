@@ -291,7 +291,8 @@ const _ax=new THREE.Vector3(),_ay=new THREE.Vector3(),_az=new THREE.Vector3(),_a
 // per-weapon overrides, merged per hand over the category pose
 const ARM_WPN={
 // only left hand — on the wooden handguard under the barrel (no floating right-hand palm)
-ak:{L:{mag:0,at:[0,.02,-.12],f:[-.45,.3,-.8],p:[0,1,0]}},
+// f.x flipped — sleeve exits bottom-left instead of the right
+ak:{L:{mag:0,at:[0,.02,-.12],f:[.45,.3,-.8],p:[0,1,0]}},
 m4:{L:{at:[0,-.02,0],up:[0,1,.26],p:[1,0,0]}},
 awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]}},
 // right hand on the magazine grip, left on the front vertical grip
