@@ -240,8 +240,8 @@ smg:{L:{at:[0,.005,-.09],f:[.55,.25,-.8],p:[-.2,1,0]}},
 rifle:{L:{mag:1,at:[0,-.06,-.02],up:[0,.88,.47],p:[1,0,0]}},
 sniper:{L:{at:[0,.01,-.16],f:[.55,.25,-.8],p:[-.2,1,0]}},
 nade:{R:{at:[0,-.01,.02],f:[-.1,.3,-.95],p:[-1,0,0]}},
-// knife: right fist through the karambit ring (at origin), open left hand low on the left of the screen
-knife:{K:{at:[0,0,0],f:[.55,.75,-.15],p:[.9,-.3,.1]},O:{cam:1,at:[-.19,-.16,-.27],f:[.3,.9,-.3],p:[.5,0,-.8]}}};
+// knife: right fist through the karambit ring; open hand low on the right (sleeve exits bottom-right)
+knife:{K:{at:[0,0,0],f:[-.55,.75,-.15],p:[-.9,-.3,.1]},O:{cam:1,at:[.19,-.16,-.27],f:[-.3,.9,-.3],p:[-.5,0,-.8]}}};
 // knuckle line height, finger centre-line x and curl radius, in the model's rest-pose units
 const ARM_SCALE=.42,ARM_KN=.285,ARM_FX=.025,ARM_CR=.075;
 let gloveTpl=null,gloveState='idle',viewGlove=null;
@@ -284,8 +284,8 @@ return{at:[x,y,fz+.018],up:[0,1,s]}}
 const _ax=new THREE.Vector3(),_ay=new THREE.Vector3(),_az=new THREE.Vector3(),_am=new THREE.Matrix4();
 // per-weapon overrides, merged per hand over the category pose
 const ARM_WPN={
-// left hand under the wooden handguard (below the barrel), arm rising from bottom-left
-ak:{L:{mag:0,at:[0,-.015,-.22],f:[.45,.25,-.85],p:[-.1,1,0]}},
+// left hand under the wooden handguard; f.x flipped so the sleeve exits bottom-left (was coming from the right)
+ak:{L:{mag:0,at:[.01,-.02,-.2],f:[-.55,.3,-.75],p:[.15,1,0]}},
 m4:{L:{at:[0,-.02,0],up:[0,1,.26],p:[1,0,0]}},
 awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]}},
 // right hand on the magazine grip, left on the front vertical grip
