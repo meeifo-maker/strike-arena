@@ -285,8 +285,8 @@ const _ax=new THREE.Vector3(),_ay=new THREE.Vector3(),_az=new THREE.Vector3(),_a
 // per-weapon overrides, merged per hand over the category pose
 const ARM_WPN={
 // only left hand — on the wooden handguard under the barrel (no floating right-hand palm)
-// under the handguard from bottom-left (same f/p pattern as SMG left hand — sleeve exits left, not over the top from the right)
-ak:{L:{mag:0,at:[0,-.025,-.13],f:[.55,.25,-.8],p:[-.2,1,0]}},
+// Hand planted on the LEFT of the handguard (at.x < 0), fingers aimed right into the gun — sleeve must exit screen-left
+ak:{L:{mag:0,at:[-.07,-.02,-.12],f:[.85,.2,-.45],p:[-.1,1,0]}},
 m4:{L:{at:[0,-.02,0],up:[0,1,.26],p:[1,0,0]}},
 awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]}},
 // right hand on the magazine grip, left on the front vertical grip
@@ -303,7 +303,9 @@ pv.userData.camL=null;
 if(c.up){const g=c.mag&&magGrip(),at=g?g.at:c.at;_ax.fromArray(c.p).negate().normalize();_az.fromArray(g?g.up:c.up).multiplyScalar(s==='L'?-1:1);_az.addScaledVector(_ax,-_az.dot(_ax)).normalize();
 _ay.crossVectors(_az,_ax);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);pv.position.fromArray(at);continue}
 _ay.fromArray(c.f).normalize();_ax.fromArray(c.p);_ax.addScaledVector(_ay,-_ax.dot(_ay)).normalize().negate();
-_az.crossVectors(_ax,_ay);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);pv.position.fromArray(c.at)}}
+_az.crossVectors(_ax,_ay);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);pv.position.fromArray(c.at)}
+// AK support arm: flip local X so the sleeve exits screen-left (reset on every other gun)
+const akL=u.arms.L;if(akL)akL.scale.x=(vmId()==='ak'?-1:1)*Math.abs(akL.scale.x||1)}
 window.ARM_POSE=ARM_POSE;window.ARM_WPN=ARM_WPN;window.magGrip=magGrip;window.reposeArms=()=>{if(viewGlove){viewGlove.userData.cat=null;poseArms(viewCat(vmId()))}};
 function mountViewHands(){if(!camera)return;loadGloves();loadHandTextures();
 try{
