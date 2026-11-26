@@ -131,8 +131,8 @@ const SKIN_CATS=[['Pistols',['glock','deagle']],['SMGs',['mp9']],['Rifles',['ak'
 // skin: {id,name,value, tint?:'#rrggbb', metal?, rough?, tex?:'assets/skins/....jpg'} — a skin with neither keeps the stock look
 // model: replaces the weapon's mesh (fix = extra hold rotation/offset for that model, s = scale; model must be centred on its origin)
 const SKINS={};for(const [,ids] of SKIN_CATS)for(const id of ids)SKINS[id]=[{id:'base',name:'Base',value:0}];
-// Karambit hold tweaks after prepareWeapon bakes the claw orientation (ring at origin, blade in the side plane)
-const KARAMBIT_FIX={s:.7,x:.01,y:-.02,z:.02};
+// Fine hold tweaks after prepareWeapon bakes claw orientation (ring at origin)
+const KARAMBIT_FIX={s:1,x:0,y:-.01,z:0};
 if(window.SKIN_DATA)for(const wid in SKIN_DATA)if(SKINS[wid])for(const k of SKIN_DATA[wid])if(!SKINS[wid].some(q=>q.id===k.id)){
   const o=Object.assign({},k);if(/karambit/i.test(o.model||'')&&!o.fix)o.fix=KARAMBIT_FIX;SKINS[wid].push(o)}
 // Emotes: pose(t) gives wrist targets h, elbow pole p and palm direction in rig space (+X right, +Y up, −Z forward), c = finger curl
@@ -220,9 +220,10 @@ sniper:{gx:.23,gy:-.19,gz:-.34,tip:.015,hold:[0,0,0],hx:.17,hy:-.33,hz:-.4,psx:.
 nade:{gx:.12,gy:-.07,gz:-.3,tip:-.04,hx:.1,hy:-.46,hz:-.38,psx:.85,psy:.78},
 knife:{gx:.1,gy:-.06,gz:-.27,tip:.6,ry:1,hx:.1,hy:-.46,hz:-.36,psx:.8,psy:.75}
 };
-const VIEW_Z={ak:-.2};
+// Positive pulls the AK toward the camera so the stock clips off — only mag + barrel stay on screen
+const VIEW_Z={ak:.1};
 // Pulling the whole viewmodel (gun + gloves) toward the camera by this factor scales it on screen without moving its anchor
-const VM_ZOOM={},VM_DROP={};
+const VM_ZOOM={rifle:1.25},VM_DROP={};
 const HAND_TEX={pistol:null,rifle:null};let handTexLoading=false,viewHandPlate=null,viewHandsRoot=null;
 function handPlateKey(cat){return(cat==='rifle'||cat==='smg'||cat==='sniper')?'rifle':'pistol'}
 function loadHandTextures(){if(handTexLoading||(HAND_TEX.pistol&&HAND_TEX.rifle))return;handTexLoading=true;
@@ -239,8 +240,8 @@ smg:{L:{at:[0,.005,-.09],f:[.55,.25,-.8],p:[-.2,1,0]}},
 rifle:{L:{mag:1,at:[0,-.06,-.02],up:[0,.88,.47],p:[1,0,0]}},
 sniper:{L:{at:[0,.01,-.16],f:[.55,.25,-.8],p:[-.2,1,0]}},
 nade:{R:{at:[0,-.01,.02],f:[-.1,.3,-.95],p:[-1,0,0]}},
-// knife: blade swung up-left, right fist round the handle, open left hand low on the left of the screen
-knife:{K:{at:[0,0,.1],f:[.7,.7,0],p:[1,-1,0]},O:{cam:1,at:[-.19,-.16,-.27],f:[.3,.9,-.3],p:[.5,0,-.8]}}};
+// knife: right fist through the karambit ring (at origin), open left hand low on the left of the screen
+knife:{K:{at:[0,0,0],f:[.55,.75,-.15],p:[.9,-.3,.1]},O:{cam:1,at:[-.19,-.16,-.27],f:[.3,.9,-.3],p:[.5,0,-.8]}}};
 // knuckle line height, finger centre-line x and curl radius, in the model's rest-pose units
 const ARM_SCALE=.42,ARM_KN=.285,ARM_FX=.025,ARM_CR=.075;
 let gloveTpl=null,gloveState='idle',viewGlove=null;
@@ -283,8 +284,8 @@ return{at:[x,y,fz+.018],up:[0,1,s]}}
 const _ax=new THREE.Vector3(),_ay=new THREE.Vector3(),_az=new THREE.Vector3(),_am=new THREE.Matrix4();
 // per-weapon overrides, merged per hand over the category pose
 const ARM_WPN={
-// fixed under the wooden handguard — mag auto-detect breaks on the older (legacy) AK skin mesh
-ak:{L:{mag:0,at:[0,.02,-.11],up:[0,.2,-1],p:[-.2,1,0]}},
+// left hand under the wooden handguard (below the barrel), arm rising from bottom-left
+ak:{L:{mag:0,at:[0,-.015,-.22],f:[.45,.25,-.85],p:[-.1,1,0]}},
 m4:{L:{at:[0,-.02,0],up:[0,1,.26],p:[1,0,0]}},
 awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]}},
 // right hand on the magazine grip, left on the front vertical grip
@@ -1228,14 +1229,18 @@ if(!best)return;meshes.forEach(m=>{if(m!==best&&m.parent)m.parent.remove(m)})}
 function prepareWeapon(scene,kind,id){const root=new THREE.Group();root.add(scene);destskinWeapon(root);
 let isKaram=false;root.traverse(o=>{if(/karambit/i.test(o.name||''))isKaram=true;if(!o.isMesh)return;o.castShadow=true;o.frustumCulled=false;const mats=Array.isArray(o.material)?o.material:[o.material];mats.forEach(m=>{if(!m)return;if(m.map){m.map.encoding=THREE.sRGBEncoding;m.map.needsUpdate=true}m.side=THREE.DoubleSide;m.transparent=false;m.opacity=1;m.depthWrite=true;m.needsUpdate=true})});
 if(id==='smoke')isolateLargestMesh(root);
-const want=kind==='nade'?.1:kind==='pistol'?.28:kind==='smg'?.4:.5;root.userData.lenZ=fitWeaponToBox(root,want);root.userData.kind=kind;
-// After auto-fit the claw span points forward; turn it into a side-on reverse grip and put the finger-ring at the origin
-if(isKaram){root.userData.karambit=1;root.quaternion.premultiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0,Math.PI/2,Math.PI)));root.updateMatrixWorld(true);
-  const box=new THREE.Box3().setFromObject(root),c=box.getCenter(new THREE.Vector3()),s=box.getSize(new THREE.Vector3());
-  // ring sits at the -X end of the handle after the yaw/roll above
-  root.position.x-=c.x-s.x*.42;root.position.y-=c.y;root.position.z-=c.z;root.updateMatrixWorld(true);
-  root.userData.lenZ=Math.max(s.x,s.y,s.z)}
-return root}
+root.userData.kind=kind;
+// Karambit: skip longest-axis→forward (that spears the claw). Ring at origin, tip up, claw curling left.
+if(isKaram){root.userData.karambit=1;root.position.set(0,0,0);root.quaternion.identity();root.scale.set(1,1,1);root.updateMatrixWorld(true);
+  let box=new THREE.Box3().setFromObject(root),size=box.getSize(new THREE.Vector3());
+  // Source axes: X=thickness, Y=handle→tip, Z=claw depth. Put the finger-ring (near −Y) at the origin.
+  root.position.set(-(box.min.x+box.max.x)*.5,-(box.min.y+size.y*.1),-(box.min.z+box.max.z)*.5);
+  // Yaw so the claw's flat sits facing the camera (Z→X), then a light tip tilt
+  root.quaternion.setFromEuler(new THREE.Euler(.25,-Math.PI/2,.15));root.updateMatrixWorld(true);
+  box=new THREE.Box3().setFromObject(root);size=box.getSize(new THREE.Vector3());
+  const longest=Math.max(size.x,size.y,size.z)||1;root.scale.multiplyScalar(.2/longest);root.updateMatrixWorld(true);
+  root.userData.lenZ=.2;return root}
+const want=kind==='nade'?.1:kind==='pistol'?.28:kind==='smg'?.4:.5;root.userData.lenZ=fitWeaponToBox(root,want);return root}
 function refreshBotGuns(){bots.forEach(b=>{const u=b.g&&b.g.userData;if(!u||!u.rig)return;if(u.gun&&u.gun.parent)u.gun.parent.remove(u.gun);const r=mountBotGun(u.rig,u.model,b.team,u.bones||{});u.gun=r.rg;u.fl=r.fl})}
 function onWeaponReady(id){if(id===vmId())buildModel(id);if(id==='ak'||id==='m4')refreshBotGuns()}
 function finishWeaponSlot(){weaponsLeft=Math.max(0,weaponsLeft-1);if(!weaponsLeft){weaponsState=Object.keys(WEAPON_TPL).length?'ready':'failed';if(assetsReady())markAssetsLocal()}refreshLoadUi()}
