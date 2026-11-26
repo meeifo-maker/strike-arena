@@ -146,7 +146,7 @@ const EMOTES=[
 const EMOTE={};for(const e of EMOTES)EMOTE[e.id]=e;
 const EM={on:false,id:null,seq:0,av:null,yaw:0,pitch:0},EW={open:false,list:[],x:0,y:0,sel:-1};
 const SKIN_TPL={},skinLoading={};
-function skinModel(id){const k=skinDef(id,vmSkin(id));if(k&&k.shape==='karambit')return karambitTpl();if(!k||!k.model)return null;if(SKIN_TPL[k.model])return SKIN_TPL[k.model];
+function skinModel(id){const k=skinDef(id,vmSkin(id));if(!k||!k.model)return null;if(SKIN_TPL[k.model])return SKIN_TPL[k.model];
   if(!skinLoading[k.model]&&THREE.GLTFLoader){skinLoading[k.model]=1;fetch(k.model).then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(parseGlb).then(g=>{SKIN_TPL[k.model]=prepareWeapon(g.scene,WEAPON_FILES[id]?WEAPON_FILES[id].kind:'knife',id);if(vmId()===id)buildModel(id)}).catch(e=>{console.warn('skin load failed',k.model,e);skinLoading[k.model]=0})}return null}
 const COIN={kill:2,round:5,match:100};
 let prof={coins:0,owned:{},eq:{}};try{const p=JSON.parse(localStorage.getItem('strikeProfile')||'null');if(p&&typeof p==='object')prof=Object.assign(prof,p)}catch(e){}
@@ -160,11 +160,11 @@ function earnsCoins(){return !online&&!party}
 function addCoins(n){if(!earnsCoins()||!n)return;prof.coins+=n;saveProf();updCoins()}
 function updCoins(){const e=document.getElementById('mm-coins');if(e)e.textContent=prof.coins}
 const skinTexCache={};
-function skinTex(url){if(!skinTexCache[url]){const t=new THREE.TextureLoader().load(url);if(THREE.SRGBColorSpace)t.colorSpace=THREE.SRGBColorSpace;t.flipY=false;skinTexCache[url]=t}return skinTexCache[url]}
+function skinTex(url){if(!skinTexCache[url]){const t=new THREE.TextureLoader().load(url);t.flipY=false;skinTexCache[url]=t}return skinTexCache[url]}
 // grad: colours along the weapon's length, muzzle/tip first (same left→right order as the skin's preview image)
 function applySkin(root,wid,sid){if(!root)return;const k=skinDef(wid,sid),skip=[viewGlove,viewHandsRoot,viewHandPlate,flash].filter(Boolean),meshes=[];
 const walk=o=>{if(skip.includes(o))return;if(o.isMesh){if(o.userData.baseMat===undefined){o.userData.baseMat=o.material;o.userData.baseGeo=o.geometry}meshes.push(o)}for(const c of o.children)walk(c)};walk(root);
-const grad=k&&k.grad&&k.grad.length>1?(k.shape?k.grad.slice(0,3):k.grad).map(h=>new THREE.Color(h)):null,v=new THREE.Vector3(),mt=new THREE.Matrix4();let ax=2,lo=0,hi=1;
+const grad=k&&k.grad&&k.grad.length>1?k.grad.map(h=>new THREE.Color(h)):null,v=new THREE.Vector3(),mt=new THREE.Matrix4();let ax=2,lo=0,hi=1;
 if(grad){root.updateMatrixWorld(true);const inv=new THREE.Matrix4().copy(root.matrixWorld).invert(),bx=new THREE.Box3();
   for(const o of meshes){if(o.userData.noSkin)continue;const p=o.userData.baseGeo.attributes.position;mt.multiplyMatrices(inv,o.matrixWorld);o.userData.skM=mt.clone();for(let i=0;i<p.count;i+=5)bx.expandByPoint(v.fromBufferAttribute(p,i).applyMatrix4(mt))}
   const s=bx.getSize(new THREE.Vector3());ax=s.x>s.y&&s.x>s.z?0:s.y>s.z?1:2;lo=bx.min.getComponent(ax);hi=bx.max.getComponent(ax)}
@@ -175,21 +175,9 @@ for(const o of meshes){if(o.userData.noSkin)continue;const u=o.userData;if(o.geo
     for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i).applyMatrix4(u.skM);const t=Math.min(1,Math.max(0,(v.getComponent(ax)-lo)/(hi-lo||1)))*n,j=Math.min(n-1,Math.floor(t));c.copy(grad[j]).lerp(grad[j+1],t-j);cols[i*3]=c.r;cols[i*3+1]=c.g;cols[i*3+2]=c.b}
     g.setAttribute('color',new THREE.BufferAttribute(cols,3));o.geometry=g;m.vertexColors=true;m.color=new THREE.Color(1,1,1);m.map=null}
   else if(k.tint)m.color=new THREE.Color(k.tint);
-  if(k.metal!=null&&'metalness' in m)m.metalness=grad?Math.min(k.metal,.7):k.metal;if(k.rough!=null&&'roughness' in m)m.roughness=k.rough;if(k.tex)m.map=skinTex(k.tex);m.needsUpdate=true;o.material=m}}
-let KARAMBIT=null;
-function karambitTpl(){if(KARAMBIT)return KARAMBIT;
-  const steel=new THREE.MeshStandardMaterial({color:0xc4c8cf,metalness:.7,roughness:.28}),grip=new THREE.MeshStandardMaterial({color:0x1d1f22,metalness:.1,roughness:.8}),inner=new THREE.Group();
-  const ex=(sh,d,mat,bev)=>{const g=new THREE.ExtrudeGeometry(sh,{depth:d,bevelEnabled:true,bevelThickness:bev,bevelSize:bev,bevelSegments:2,curveSegments:24});g.translate(0,0,-d/2);const m=new THREE.Mesh(g,mat);m.castShadow=true;m.frustumCulled=false;inner.add(m);return m};
-  // drawn in XY with +X toward the tip; the claw blade curves down
-  const bl=new THREE.Shape();bl.moveTo(-.01,.013);bl.quadraticCurveTo(.075,.03,.125,-.045);bl.quadraticCurveTo(.07,-.002,-.01,-.012);bl.lineTo(-.01,.013);ex(bl,.0035,steel,.0006);
-  const hd=new THREE.Shape();hd.moveTo(-.008,.015);hd.lineTo(-.1,.009);hd.quadraticCurveTo(-.112,-.002,-.1,-.014);hd.quadraticCurveTo(-.07,-.02,-.055,-.013);hd.quadraticCurveTo(-.035,-.02,-.008,-.014);hd.lineTo(-.008,.015);
-  ex(hd,.011,grip,.003).userData.noSkin=true;
-  const ring=new THREE.Mesh(new THREE.TorusGeometry(.017,.0045,10,28),steel);ring.position.set(-.122,-.003,0);ring.castShadow=true;ring.frustumCulled=false;ring.userData.noSkin=true;inner.add(ring);
-  inner.rotation.y=Math.PI/2;const root=new THREE.Group();root.add(inner);root.updateMatrixWorld(true);
-  const box=new THREE.Box3().setFromObject(root);inner.position.sub(box.getCenter(new THREE.Vector3()));root.userData.lenZ=box.getSize(new THREE.Vector3()).z;root.userData.kind='knife';
-  return KARAMBIT=root}
+  if(k.metal!=null&&'metalness' in m)m.metalness=grad?Math.min(k.metal,.7):k.metal;if(k.rough!=null&&'roughness' in m)m.roughness=k.rough;if(k.tex){m.map=skinTex(k.tex);m.color=new THREE.Color(1,1,1)}m.needsUpdate=true;o.material=m}}
 function vmSkin(id){if(specId)return specBot&&specBot.st&&specBot.st.w===id&&specBot.st.sk||'base';return eqSkin(id)}
-function applyRemoteSkin(b,r){const u=b.g&&b.g.userData;if(!u||!u.gun)return;const gw=b.team==='t'?'ak':'m4',sid=r.w===gw&&r.sk?r.sk:'base',key=u.gun.uuid+':'+sid;if(b.skKey===key)return;b.skKey=key;applySkin(u.gun,gw,sid)}
+function applyRemoteSkin(b,r){const u=b.g&&b.g.userData;if(!u||!u.gun)return;const gw=b.team==='t'?'ak':'m4',sid=r.w===gw&&r.sk?r.sk:'base',key=u.gun.uuid+':'+sid;if(b.skKey===key)return;b.skKey=key;const k=skinDef(gw,sid);applySkin(u.gun,gw,k&&k.model?'base':sid)}
 let custom=null,cfgM={id:'ak',size:1,rot:0,x:0,y:0,z:-.1},nades={he:1,flash:1,smoke:1},cur='glock',scoped=false,crouch=false,semiLock=false,armor=0,money=800,wins=0,loses=0,lossStreak=0,freezeT=0,buyT=0,buyOpen=false,inv={glock:{ammo:20,reserve:120}},roundKills=0;
 function fitWeaponToBox(obj,want){obj.position.set(0,0,0);obj.rotation.set(0,0,0);obj.quaternion.identity();obj.scale.set(1,1,1);obj.updateMatrixWorld(true);
 const recenter=()=>{obj.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(obj);obj.position.sub(b.getCenter(new THREE.Vector3()));obj.updateMatrixWorld(true)};

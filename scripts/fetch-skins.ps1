@@ -93,7 +93,7 @@ foreach ($wid in $map.Keys) {
     $tier = $tiers | Where-Object { $_.id -eq $s.rarity.id } | Select-Object -First 1
     $metal = $s.pattern.name -match $shiny
     $list += [ordered]@{
-      id = $slug; name = $s.pattern.name; value = if ($wid -eq 'knife') { 400 } elseif ($tier) { $tier.v } else { 60 }
+      id = $slug; name = $s.pattern.name; pk = $s.pattern.id; legacy = [bool]$s.legacy_model; value = if ($wid -eq 'knife') { 400 } elseif ($tier) { $tier.v } else { 60 }
       tint = Get-Tint $file; grad = @(Get-Palette $file); metal = if ($metal) { 0.85 } else { 0.3 }; rough = if ($metal) { 0.25 } else { 0.55 }
       img = "assets/skins/img/$wid-$slug.png"; shape = if ($wid -eq 'knife') { 'karambit' } else { $null }; rarity = $s.rarity.name; rc = $s.rarity.color
     }
