@@ -48,6 +48,31 @@ function Get-Tint($path) {
   '#{0:x2}{1:x2}{2:x2}' -f [int][Math]::Min(255, $r * $s), [int][Math]::Min(255, $g * $s), [int][Math]::Min(255, $b * $s)
 }
 
+# Colours of the weapon in N vertical bands, left (muzzle/tip) to right (stock/handle)
+function Get-Palette($path, $n = 5) {
+  $bmp = [System.Drawing.Bitmap]::FromFile($path)
+  try {
+    $x0 = $bmp.Width; $x1 = 0
+    for ($x = 0; $x -lt $bmp.Width; $x += 2) { for ($y = 0; $y -lt $bmp.Height; $y += 4) { if ($bmp.GetPixel($x, $y).A -ge 160) { $x0 = [Math]::Min($x0, $x); $x1 = [Math]::Max($x1, $x); break } } }
+    $bands = @()
+    for ($i = 0; $i -lt $n; $i++) {
+      $a = [int]($x0 + ($x1 - $x0) * $i / $n); $z = [int]($x0 + ($x1 - $x0) * ($i + 1) / $n)
+      $r = 0.0; $g = 0.0; $b = 0.0; $w = 0.0
+      for ($x = $a; $x -le $z; $x += 2) { for ($y = 0; $y -lt $bmp.Height; $y += 2) {
+        $c = $bmp.GetPixel($x, $y); if ($c.A -lt 160) { continue }
+        $mx = [Math]::Max($c.R, [Math]::Max($c.G, $c.B)); $mn = [Math]::Min($c.R, [Math]::Min($c.G, $c.B))
+        $k = 0.25 + ($mx - $mn) / 255.0 * 2
+        $r += $c.R * $k; $g += $c.G * $k; $b += $c.B * $k; $w += $k } }
+      if ($w -eq 0) { $bands += '#808080'; continue }
+      $r /= $w; $g /= $w; $b /= $w
+      $l = 0.3 * $r + 0.59 * $g + 0.11 * $b
+      $r = $l + ($r - $l) * 1.4; $g = $l + ($g - $l) * 1.4; $b = $l + ($b - $l) * 1.4
+      $bands += '#{0:x2}{1:x2}{2:x2}' -f ([int][Math]::Min(255, [Math]::Max(0, $r * 1.15))), ([int][Math]::Min(255, [Math]::Max(0, $g * 1.15))), ([int][Math]::Min(255, [Math]::Max(0, $b * 1.15)))
+    }
+  } finally { $bmp.Dispose() }
+  $bands
+}
+
 $out = [ordered]@{}
 foreach ($wid in $map.Keys) {
   $pool = $api | Where-Object { $_.weapon.id -eq $map[$wid] -and $_.pattern -and $_.image -and $skip[$wid] -notcontains $_.pattern.name } |
@@ -69,8 +94,8 @@ foreach ($wid in $map.Keys) {
     $metal = $s.pattern.name -match $shiny
     $list += [ordered]@{
       id = $slug; name = $s.pattern.name; value = if ($wid -eq 'knife') { 400 } elseif ($tier) { $tier.v } else { 60 }
-      tint = Get-Tint $file; metal = if ($metal) { 0.85 } else { 0.3 }; rough = if ($metal) { 0.25 } else { 0.55 }
-      img = "assets/skins/img/$wid-$slug.png"; rarity = $s.rarity.name; rc = $s.rarity.color
+      tint = Get-Tint $file; grad = @(Get-Palette $file); metal = if ($metal) { 0.85 } else { 0.3 }; rough = if ($metal) { 0.25 } else { 0.55 }
+      img = "assets/skins/img/$wid-$slug.png"; shape = if ($wid -eq 'knife') { 'karambit' } else { $null }; rarity = $s.rarity.name; rc = $s.rarity.color
     }
     Write-Host "$wid  $($s.rarity.name.PadRight(12)) $($s.pattern.name)"
   }
