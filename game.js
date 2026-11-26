@@ -230,7 +230,7 @@ sniper:{gx:.23,gy:-.19,gz:-.34,tip:.015,hold:[0,0,0],hx:.17,hy:-.33,hz:-.4,psx:.
 nade:{gx:.12,gy:-.07,gz:-.3,tip:-.04,hx:.1,hy:-.46,hz:-.38,psx:.85,psy:.78},
 knife:{gx:.1,gy:-.06,gz:-.27,tip:.6,ry:1,hx:.1,hy:-.46,hz:-.36,psx:.8,psy:.75}
 };
-const VIEW_Z={ak:-.2};
+const VIEW_Z={ak:0};
 // Pulling the whole viewmodel (gun + gloves) toward the camera by this factor scales it on screen without moving its anchor
 const VM_ZOOM={},VM_DROP={};
 const HAND_TEX={pistol:null,rifle:null};let handTexLoading=false,viewHandPlate=null,viewHandsRoot=null;
@@ -293,6 +293,8 @@ return{at:[x,y,fz+.018],up:[0,1,s]}}
 const _ax=new THREE.Vector3(),_ay=new THREE.Vector3(),_az=new THREE.Vector3(),_am=new THREE.Matrix4();
 // per-weapon overrides, merged per hand over the category pose
 const ARM_WPN={
+// mag:0 — manual hold under the wooden handguard, arm from the lower left, fingers round the far side
+ak:{L:{mag:0,at:[0,.04,-.11],up:[0,0,-1],p:[-.4,.92,0]}},
 m4:{L:{at:[0,-.02,0],up:[0,1,.26],p:[1,0,0]}},
 awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]}},
 // right hand on the magazine grip, left on the front vertical grip
