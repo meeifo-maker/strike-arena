@@ -131,8 +131,8 @@ const SKIN_CATS=[['Pistols',['glock','deagle']],['SMGs',['mp9']],['Rifles',['ak'
 // skin: {id,name,value, tint?:'#rrggbb', metal?, rough?, tex?:'assets/skins/....jpg'} — a skin with neither keeps the stock look
 // model: replaces the weapon's mesh (fix = extra hold rotation/offset for that model, s = scale; model must be centred on its origin)
 const SKINS={};for(const [,ids] of SKIN_CATS)for(const id of ids)SKINS[id]=[{id:'base',name:'Base',value:0}];
-// Ring is at origin (= fist). Slight drop so the handle sits in the curled fingers.
-const KARAMBIT_FIX={s:.9,x:.01,y:-.02,z:.01};
+// Scale only — orientation comes from prepareWeapon + bindKnifeToFist
+const KARAMBIT_FIX={s:.95};
 if(window.SKIN_DATA)for(const wid in SKIN_DATA)if(SKINS[wid])for(const k of SKIN_DATA[wid])if(!SKINS[wid].some(q=>q.id===k.id)){
   const o=Object.assign({},k);if(/karambit/i.test(o.model||'')&&!o.fix)o.fix=KARAMBIT_FIX;SKINS[wid].push(o)}
 // Emotes: pose(t) gives wrist targets h, elbow pole p and palm direction in rig space (+X right, +Y up, −Z forward), c = finger curl
@@ -210,6 +210,12 @@ hold.rotation.set(f.rx||0,f.ry||0,f.rz||0);
 const off=vp.hold||[0,0,0];hold.position.set(off[0],off[1],off[2]);hold.position.x+=f.x||0;hold.position.y+=f.y||0;hold.position.z+=f.z||0;
 gun.add(hold);gun.add(flash);gun.userData.wpnHold=hold;
 flash.position.set(0,.02,-want*.55);gun.scale.setScalar(1);gun.userData.loaded=true;gun.userData.viewCat=cat;gun.userData.karambit=!!tpl.userData.karambit;return true}
+// Put the knife in the fist. Fist local +Y = fingers — without a 90° turn the blade spears out the knuckles.
+function bindKnifeToFist(){if(!gun||!viewGlove)return;const hold=gun.userData.wpnHold,fist=viewGlove.userData.arms&&viewGlove.userData.arms.K;
+  if(!hold)return;if(viewCat(vmId())!=='knife'||!fist){if(hold.parent!==gun)gun.add(hold);return}
+  fist.add(hold);
+  // rx+π/2: tip (+Y) → grip axis; rz flips claw so it curls over the hand toward the left of the screen
+  hold.position.set(0,-.01,.01);hold.rotation.set(Math.PI/2,0,Math.PI)}
 function viewCat(id){if(id==='awp')return'sniper';if(id==='mp9')return'smg';if(id==='glock'||id==='deagle')return'pistol';if(id==='he'||id==='flash'||id==='smoke')return'nade';if(id==='knife')return'knife';return'rifle'}
 const VIEW_POSE={
 // Gun points at crosshair. Hands are huge + low so sleeves exit the BOTTOM of the screen.
@@ -219,8 +225,7 @@ smg:{gx:.21,gy:-.17,gz:-.3,tip:.02,hold:[0,0,0],hx:.15,hy:-.33,hz:-.4,psx:.22,ps
 rifle:{gx:.22,gy:-.15,gz:-.3,tip:.02,hold:[0,0,0],hx:.16,hy:-.327,hz:-.4,psx:.23,psy:.46,over:1},
 sniper:{gx:.23,gy:-.19,gz:-.34,tip:.015,hold:[0,0,0],hx:.17,hy:-.33,hz:-.4,psx:.23,psy:.46,over:1},
 nade:{gx:.12,gy:-.07,gz:-.3,tip:-.04,hx:.1,hy:-.46,hz:-.38,psx:.85,psy:.78},
-// knife lower-right; tip pitched up-left so a karambit claw sits in the fist
-knife:{gx:.14,gy:-.1,gz:-.32,tip:.4,ry:.85,hx:.1,hy:-.46,hz:-.36,psx:.8,psy:.75}
+knife:{gx:.15,gy:-.11,gz:-.3,tip:.2,ry:.55,hx:.1,hy:-.46,hz:-.36,psx:.8,psy:.75}
 };
 // AK: mag + barrel on screen (not stock). Slight pull-in; don't over-zoom or the mag clips off.
 const VIEW_Z={ak:.04};
@@ -241,8 +246,8 @@ smg:{L:{at:[0,.005,-.09],f:[.55,.25,-.8],p:[-.2,1,0]}},
 rifle:{L:{mag:1,at:[0,-.06,-.02],up:[0,.88,.47],p:[1,0,0]}},
 sniper:{L:{at:[0,.01,-.16],f:[.55,.25,-.8],p:[-.2,1,0]}},
 nade:{R:{at:[0,-.01,.02],f:[-.1,.3,-.95],p:[-1,0,0]}},
-// knife: fist at the karambit ring (gun origin); open left hand on the left of the screen
-knife:{K:{at:[0,0,0],f:[.35,.7,-.4],p:[.85,-.4,.1]},O:{cam:1,at:[-.22,-.15,-.3],f:[.3,.9,-.2],p:[.5,0,-.8]}}};
+// knife: fist lower-right (knife is parented into this pivot); open left hand on the left
+knife:{K:{at:[.02,-.01,.04],f:[.4,.55,-.55],p:[.7,-.5,.2]},O:{cam:1,at:[-.22,-.15,-.3],f:[.3,.9,-.2],p:[.5,0,-.8]}}};
 // knuckle line height, finger centre-line x and curl radius, in the model's rest-pose units
 const ARM_SCALE=.42,ARM_KN=.285,ARM_FX=.025,ARM_CR=.075;
 let gloveTpl=null,gloveState='idle',viewGlove=null;
@@ -303,7 +308,8 @@ pv.userData.camL=null;
 if(c.up){const g=c.mag&&magGrip(),at=g?g.at:c.at;_ax.fromArray(c.p).negate().normalize();_az.fromArray(g?g.up:c.up).multiplyScalar(s==='L'?-1:1);_az.addScaledVector(_ax,-_az.dot(_ax)).normalize();
 _ay.crossVectors(_az,_ax);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);pv.position.fromArray(at);continue}
 _ay.fromArray(c.f).normalize();_ax.fromArray(c.p);_ax.addScaledVector(_ay,-_ax.dot(_ay)).normalize().negate();
-_az.crossVectors(_ax,_ay);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);pv.position.fromArray(c.at)}}
+_az.crossVectors(_ax,_ay);_am.makeBasis(_ax,_ay,_az);pv.quaternion.setFromRotationMatrix(_am);pv.position.fromArray(c.at)}
+bindKnifeToFist()}
 window.ARM_POSE=ARM_POSE;window.ARM_WPN=ARM_WPN;window.magGrip=magGrip;window.reposeArms=()=>{if(viewGlove){viewGlove.userData.cat=null;poseArms(viewCat(vmId()))}};
 function mountViewHands(){if(!camera)return;loadGloves();loadHandTextures();
 try{
@@ -314,7 +320,7 @@ if(gun)for(let i=gun.children.length-1;i>=0;i--){const c=gun.children[i];if(c.us
 const cat=viewCat(vmId()),vp=VIEW_POSE[cat]||VIEW_POSE.rifle,key=handPlateKey(cat),tex=HAND_TEX[key];
 if(gloveState==='ready'){if(!viewGlove)viewGlove=buildGlove();if(gun){gun.add(viewGlove);viewGlove.userData.cat=null}
 if(gun){gun.traverse(o=>{if(o.isMesh){o.renderOrder=6;if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];for(const m of ms){m.depthTest=true;m.depthWrite=true;m.transparent=false}}}});gun.userData.viewCat=cat}
-viewGlove.scale.setScalar(1/(gun.scale.x||1));poseArms(cat);window.__vh={cat,arms:true};return}
+viewGlove.scale.setScalar(1/(gun.scale.x||1));poseArms(cat);bindKnifeToFist();window.__vh={cat,arms:true};return}
 if(!tex){if(gun)gun.userData.viewCat=cat;return}
 // No depthTest — hands always from bottom of screen; gun draws on top via renderOrder
 const mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,depthTest:false,depthWrite:false,side:THREE.FrontSide,alphaTest:.12});
@@ -1236,8 +1242,8 @@ if(isKaram){root.userData.karambit=1;root.position.set(0,0,0);root.quaternion.id
   let box=new THREE.Box3().setFromObject(root),size=box.getSize(new THREE.Vector3());
   // Source: X=thickness, Y=handle→tip (ring at −Y), Z=claw depth
   const ringLocal=new THREE.Vector3((box.min.x+box.max.x)*.5,box.min.y+size.y*.08,(box.min.z+box.max.z)*.5);
-  // Yaw so the claw faces the camera; tip stays roughly up
-  const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(.15,-Math.PI/2,.2));
+  // Flip from the previous yaw so the claw curls the other way (was mirrored / "wrong direction")
+  const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(.15,Math.PI/2,.2));
   root.quaternion.copy(q);root.position.copy(ringLocal).applyQuaternion(q).negate();root.updateMatrixWorld(true);
   box=new THREE.Box3().setFromObject(root);size=box.getSize(new THREE.Vector3());
   const longest=Math.max(size.x,size.y,size.z)||1,sc=.16/longest;root.scale.setScalar(sc);
