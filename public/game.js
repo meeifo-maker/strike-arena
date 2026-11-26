@@ -131,7 +131,8 @@ const SKIN_CATS=[['Pistols',['glock','deagle']],['SMGs',['mp9']],['Rifles',['ak'
 // skin: {id,name,value, tint?:'#rrggbb', metal?, rough?, tex?:'assets/skins/....jpg'} — a skin with neither keeps the stock look
 // model: replaces the weapon's mesh (fix = extra hold rotation/offset for that model, s = scale; model must be centred on its origin)
 const SKINS={};for(const [,ids] of SKIN_CATS)for(const id of ids)SKINS[id]=[{id:'base',name:'Base',value:0}];
-if(window.SKIN_DATA)for(const wid in SKIN_DATA)if(SKINS[wid])for(const k of SKIN_DATA[wid])if(!SKINS[wid].some(q=>q.id===k.id))SKINS[wid].push(k);
+const SHAPE_FIX={karambit:{rz:Math.PI}};
+if(window.SKIN_DATA)for(const wid in SKIN_DATA)if(SKINS[wid])for(const k of SKIN_DATA[wid])if(!SKINS[wid].some(q=>q.id===k.id))SKINS[wid].push(k.shape&&!k.fix?Object.assign({fix:SHAPE_FIX[k.shape]},k):k);
 // Emotes: pose(t) gives wrist targets h, elbow pole p and palm direction in rig space (+X right, +Y up, −Z forward), c = finger curl
 const HANG=s=>({h:[s*.24,.9,.03],p:[0,0,1],palm:[-s,0,0],c:.3});
 const EMOTES=[
@@ -1717,9 +1718,13 @@ crouch=!escMenu&&!!(keys[K.duck]||(K.duck==='ControlLeft'&&(keys.ControlRight||k
 // Walking into a ladder while facing it grabs it; leaving its zone (or jumping) lets go
 const lad=!P.dead&&ladCd<=0?ladderAt(P.x,P.y,P.z,ldir,P.lad,P.yaw):null;
 if(!lad)P.lad=null;else if(P.lad)P.lad=lad;else if(fz<0&&-Math.sin(P.yaw)*ldir.x-Math.cos(P.yaw)*ldir.z>.35){P.lad=lad;P.ldx=ldir.x;P.ldz=ldir.z}
-const sp=(crouch?1.7:(walk?2.6:5.2))*W[cur].spd*(P.lad?.4:1);
+// Facing away from the rungs on a ladder means stepping off it (onto a deck behind, or back to the floor), not climbing
+const lface=P.lad?-Math.sin(P.yaw)*P.ldx-Math.cos(P.yaw)*P.ldz:1;
+const sp=(crouch?1.7:(walk?2.6:5.2))*W[cur].spd*(P.lad&&lface>=0?.4:1);
 if(fx||fz){const l=Math.hypot(fx,fz);fx/=l;fz/=l;
-const c=Math.cos(P.yaw),s=Math.sin(P.yaw),ox=P.x,oz=P.z;move(P,(fx*c+fz*s)*sp*dt,(-fx*s+fz*c)*sp*dt,.4);
+const c=Math.cos(P.yaw),s=Math.sin(P.yaw),ox=P.x,oz=P.z,mdx=(fx*c+fz*s)*sp*dt,mdz=(-fx*s+fz*c)*sp*dt;
+// On a ladder the climb code keeps the player in place; map collision would trap them behind braces at its foot
+if(P.lad&&world){P.x+=mdx;P.z+=mdz;if(world.ground(P.x,P.z,P.y+world.STEP)<-1e8){P.x=ox;P.z=oz}}else move(P,mdx,mdz,.4);
 if(!P.lad&&Math.hypot(P.x-ox,P.z-oz)<sp*dt*.05){stuckT+=dt;if(stuckT>.75){stuckT=0;unstick(P)}}else stuckT=0;P.speed=crouch?.35:(walk?.5:1);if(!walk&&!crouch){stepT-=dt;if(stepT<=0){stepT=.36;snd(.12,.05,500)}}}else P.speed=0;
 recoil=Math.max(0,recoil-dt*(mouseDown?3:9));
 fireCd-=dt;kick=Math.max(0,kick-dt*10);vkick*=Math.exp(-dt*9);
@@ -1729,13 +1734,13 @@ if(!escMenu&&keys[K.jump]&&P.lad&&!P.dead){P.lad=null;ladCd=.4;P.vy=3.5;P.gnd=fa
 else if(!escMenu&&keys[K.jump]&&P.gnd&&!P.dead&&freezeT<=0){P.vy=7.4;P.gnd=false}
 ladCd-=dt;
 // W climbs toward where you look (look down to descend), S the opposite
-if(world&&P.lad){const v=(fz<0?1:fz>0?-1:0)*(P.pitch<-.5?-1:1)*3.4,was=P.y,L=P.lad;P.vy=0;
+if(world&&P.lad){const v=lface<0?0:(fz<0?1:fz>0?-1:0)*(P.pitch<-.5?-1:1)*3.4,was=P.y,L=P.lad;P.vy=0;
 // climb on past the top rung up to a ledge/roof just beyond the ladder so you can step off onto it
 const fa=world.ground(L[2]?L[0]+P.ldx*.45:P.x,L[2]?P.z:L[1]+P.ldz*.45,L[5]+1.3),top=fa>L[5]-1.5?Math.max(L[5],fa):L[5];
 P.y=Math.min(P.y+v*dt,Math.max(was,top+.05));
 // Off the ground the player is fixed to the ladder face, so braces, rails and deck edges can't shove them out of reach;
 // standing at the bottom they're only kept from walking through the rungs, so they can still step away
-if(P.y<top-.1){const off=-.4,hw=L[3]/2,stick=v>0||!P.gnd;if(L[2]){if(stick||(P.x-L[0])*P.ldx>off)P.x=L[0]+off*P.ldx;P.z=Math.max(L[1]-hw,Math.min(L[1]+hw,P.z))}
+if(P.y<top-.1){const off=-.4,hw=L[3]/2,stick=lface>=0&&(v>0||!P.gnd);if(L[2]){if(stick||(P.x-L[0])*P.ldx>off)P.x=L[0]+off*P.ldx;P.z=Math.max(L[1]-hw,Math.min(L[1]+hw,P.z))}
 else{if(stick||(P.z-L[1])*P.ldz>off)P.z=L[1]+off*P.ldz;P.x=Math.max(L[0]-hw,Math.min(L[0]+hw,P.x))}}
 // scaffold ladders end beside a deck rather than under a ledge: let go at the top and drop onto it
 else if(v>0&&top===L[5]&&world.ground(P.x,P.z,P.y)>P.y-1.6){P.lad=null;ladCd=.5}
