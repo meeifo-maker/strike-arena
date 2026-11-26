@@ -217,10 +217,9 @@ function seatKnifeInFist(){if(!gun||!viewGlove)return;const hold=gun.userData.wp
   // Drop any leftover weapon groups stuck on the fist from earlier swaps
   for(let i=fist.children.length-1;i>=0;i--){const ch=fist.children[i];if(!ch.isMesh&&ch!==hold)fist.remove(ch)}
   if(hold.parent!==fist)fist.add(hold);
-  // y:0 = grip axis (NOT +Y — that shoved the blade out past the knuckles)
-  hold.position.set(0,0,0);
-  // tip (+Y after prepareWeapon) → down and right in fist space
-  hold.rotation.set(Math.PI/2,0,Math.PI/2);
+  // Ring in the curl; tip angled up and to the right (was flat horizontal behind the fist)
+  hold.position.set(0,.01,0);
+  hold.rotation.set(.35,.2,Math.PI/2);
   hold.scale.set(1,1,1)}
 function viewCat(id){if(id==='awp')return'sniper';if(id==='mp9')return'smg';if(id==='glock'||id==='deagle')return'pistol';if(id==='he'||id==='flash'||id==='smoke')return'nade';if(id==='knife')return'knife';return'rifle'}
 const VIEW_POSE={
