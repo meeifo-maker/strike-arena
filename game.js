@@ -129,6 +129,7 @@ SKINS.knife.push({id:'scary',name:'Scary Knife',value:300,model:'assets/skins/kn
 SKINS.glock.push({id:'usp-printstream',name:'USP-S Printstream',value:200,model:'assets/skins/usp-printstream.glb?v=1',fix:{s:1.8,z:-.08}});
 SKINS.deagle.push({id:'printstream',name:'Printstream',value:250,model:'assets/skins/deagle-printstream.glb?v=1',fix:{y:.012}});
 SKINS.m4.push({id:'printstream',name:'Printstream',value:350,model:'assets/skins/m4-printstream.glb?v=1'});
+if(window.SKIN_DATA)for(const wid in SKIN_DATA)if(SKINS[wid])for(const k of SKIN_DATA[wid])if(!SKINS[wid].some(q=>q.id===k.id))SKINS[wid].push(k);
 // Emotes: pose(t) gives wrist targets h, elbow pole p and palm direction in rig space (+X right, +Y up, −Z forward), c = finger curl
 const HANG=s=>({h:[s*.24,.9,.03],p:[0,0,1],palm:[-s,0,0],c:.3});
 const EMOTES=[
@@ -205,7 +206,7 @@ sniper:{gx:.23,gy:-.19,gz:-.34,tip:.015,hold:[0,0,0],hx:.17,hy:-.33,hz:-.4,psx:.
 nade:{gx:.12,gy:-.07,gz:-.3,tip:-.04,hx:.1,hy:-.46,hz:-.38,psx:.85,psy:.78},
 knife:{gx:.1,gy:-.06,gz:-.27,tip:.6,ry:1,hx:.1,hy:-.46,hz:-.36,psx:.8,psy:.75}
 };
-const VIEW_Z={ak:-.13};
+const VIEW_Z={ak:-.2};
 // Pulling the whole viewmodel (gun + gloves) toward the camera by this factor scales it on screen without moving its anchor
 const VM_ZOOM={},VM_DROP={};
 const HAND_TEX={pistol:null,rifle:null};let handTexLoading=false,viewHandPlate=null,viewHandsRoot=null;
@@ -268,8 +269,6 @@ return{at:[x,y,fz+.018],up:[0,1,s]}}
 const _ax=new THREE.Vector3(),_ay=new THREE.Vector3(),_az=new THREE.Vector3(),_am=new THREE.Matrix4();
 // per-weapon overrides, merged per hand over the category pose
 const ARM_WPN={
-// mag:0 — manual hold under the wooden handguard, arm from the lower left, fingers round the far side
-ak:{L:{mag:0,at:[0,.04,-.11],up:[0,0,-1],p:[-.4,.92,0]}},
 m4:{L:{at:[0,-.02,0],up:[0,1,.26],p:[1,0,0]}},
 awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]}},
 // right hand on the magazine grip, left on the front vertical grip
@@ -621,7 +620,8 @@ function renderSkins(){updCoins();const cats=$('sk-cats'),list=$('sk-list');if(!
     return}
   list.innerHTML=SKIN_CATS[skCat][1].map(wid=>'<div class="sk-wpn"><h4>'+W[wid].n+'</h4><div class="sk-grid">'+SKINS[wid].map(k=>{
     const own=ownsSkin(wid,k.id),eq=eqSkin(wid)===k.id,data=' data-w="'+wid+'" data-s="'+k.id+'"';
-    return '<div class="sk-card'+(eq?' eq':'')+'"><div class="sk-prev"'+(k.tint?' style="border-bottom-color:'+k.tint+'"':'')+'>'+W[wid].n.toUpperCase()+'</div><div class="sk-info"><b>'+k.name+'</b><span>Value: '+k.value+' <i class="coin"></i></span>'
+    const bc=k.rc||k.tint;
+    return '<div class="sk-card'+(eq?' eq':'')+'"><div class="sk-prev"'+(bc?' style="border-bottom-color:'+bc+'"':'')+'>'+(k.img?'<img alt="" loading="lazy" src="'+k.img+'">':W[wid].n.toUpperCase())+'</div><div class="sk-info"><b>'+k.name+'</b>'+(k.rarity?'<em style="color:'+k.rc+'">'+k.rarity+'</em>':'')+'<span>Value: '+k.value+' <i class="coin"></i></span>'
       +(eq?'<button type="button" disabled>Equipped</button>':own?'<button type="button" data-a="eq"'+data+'>Equip</button>':'<button type="button" class="buy" data-a="buy"'+data+(prof.coins<k.value?' disabled':'')+'>Unlock</button>')+'</div></div>'}).join('')+'</div></div>').join('');
   list.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{const w=b.dataset.w,sid=b.dataset.s,k=skinDef(w,sid);if(!k)return;
     if(b.dataset.a==='buy'){if(prof.coins<k.value)return;prof.coins-=k.value;prof.owned[w+':'+sid]=1}
