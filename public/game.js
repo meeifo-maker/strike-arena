@@ -296,17 +296,17 @@ return{at:[x,y,fz+.018],up:[0,1,s]}}
 const _ax=new THREE.Vector3(),_ay=new THREE.Vector3(),_az=new THREE.Vector3(),_am=new THREE.Matrix4();
 // per-weapon overrides, merged per hand over the category pose
 const ARM_WPN={
-// AK: only left hand under handguard from the left (same recipe as SMG). Explicitly hide R/O/K.
-ak:{L:{mag:0,at:[-.04,-.03,-.14],f:[.6,.3,-.7],p:[-.2,1,0]},R:null,O:null,K:null},
+// AK two-hand hold: right on pistol grip (from screen-right), left under handguard (from screen-left — same f/p as SMG)
+ak:{R:{at:[0,-.035,.05],f:[-.12,.4,-.9],p:[-1,.05,0]},L:{mag:0,at:[0,-.02,-.14],f:[.55,.25,-.8],p:[-.2,1,0]},O:null,K:null},
 m4:{L:{at:[0,-.02,0],up:[0,1,.26],p:[1,0,0]},O:null,K:null},
 awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]},O:null,K:null},
 // right hand on the magazine grip, left on the front vertical grip
 mp9:{R:{at:[0,-.045,-.05],f:[-.1,.4,-.9],p:[-1,0,0]},L:{at:[0,-.01,-.168],f:[.35,.35,-.87],p:[1,0,.4]},O:null,K:null}};
-function poseArms(cat){if(!viewGlove)return;const u=viewGlove.userData,key=cat+':'+vmId();if(u.cat===key)return;u.cat=key;
+function poseArms(cat){if(!viewGlove)return;const u=viewGlove.userData,key=cat+':'+vmId()+':v2';if(u.cat===key)return;u.cat=key;
 const B=ARM_POSE[cat]||ARM_POSE.rifle,X=ARM_WPN[vmId()]||{},P={};for(const s of ['L','R','O','K'])if(X[s]!==null&&(B[s]||X[s]))P[s]=Object.assign({},B[s],X[s]);
-// Always hide hands not in P (stops knife open-hand leaking onto the AK)
-for(const s of ['L','R','O','K']){const pv=u.arms[s];if(pv)pv.visible=false}
-for(const s of ['L','R','O','K']){const pv=u.arms[s],c=P[s];if(!pv||!c)continue;pv.visible=true;pv.scale.x=Math.abs(pv.scale.x||1);
+// Hard-reset every arm, then enable only what this weapon needs (kills floating knife/open hands on the AK)
+for(const s of ['L','R','O','K']){const pv=u.arms[s];if(!pv)continue;pv.visible=false;pv.scale.set(1,1,1);pv.position.set(0,0,0);pv.quaternion.identity()}
+for(const s of ['L','R','O','K']){const pv=u.arms[s],c=P[s];if(!pv||!c)continue;pv.visible=true;
 // cam: at/f/p are in camera space (screen-anchored), so undo the gun's rest pose
 if(c.cam){const vp=VIEW_POSE[cat]||VIEW_POSE.rifle,q=new THREE.Quaternion().setFromEuler(new THREE.Euler(vp.tip||0,vp.ry||0,vp.rz||0)).invert(),
 o=new THREE.Vector3(vp.gx,vp.gy-(VM_DROP[cat]||0),vp.gz+(VIEW_Z[vmId()]||0)).multiplyScalar(1/(VM_ZOOM[cat]||1));
