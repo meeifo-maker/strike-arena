@@ -210,18 +210,17 @@ hold.rotation.set(f.rx||0,f.ry||0,f.rz||0);
 const off=vp.hold||[0,0,0];hold.position.set(off[0],off[1],off[2]);hold.position.x+=f.x||0;hold.position.y+=f.y||0;hold.position.z+=f.z||0;
 gun.add(hold);gun.add(flash);gun.userData.wpnHold=hold;
 flash.position.set(0,.02,-want*.55);gun.scale.setScalar(1);gun.userData.loaded=true;gun.userData.viewCat=cat;gun.userData.karambit=!!tpl.userData.karambit;return true}
-// Parent knife into the fist. Fist local: +Y = out through the fingers.
+// Parent knife into the fist. Fist local: +Y = out through the fingers (tip must stay on +Y).
 function clearFistExtras(fist,keep){if(!fist)return;for(let i=fist.children.length-1;i>=0;i--){const ch=fist.children[i];if(ch.isMesh||ch===keep)continue;fist.remove(ch)}}
 function seatKnifeInFist(){if(!gun||!viewGlove)return;const hold=gun.userData.wpnHold,fist=viewGlove.userData.arms&&viewGlove.userData.arms.K;
   if(!hold)return;
   if(viewCat(vmId())!=='knife'||!fist){if(hold.parent&&hold.parent!==gun)gun.attach(hold);clearFistExtras(fist);return}
   clearFistExtras(fist,hold);
   if(hold.parent!==fist)fist.add(hold);
-  // Ring in the curl. Karambit tip is already +Y after prepareWeapon; stock knife tip is −Z.
+  // Ring in the knuckle curl. Extra Euler rolls were shoving the blade out the side of the fist.
   const kar=!!gun.userData.karambit;
-  hold.position.set(0,kar?.008:.012,0);
-  if(kar)hold.rotation.set(.4,.2,.55); // tip up-right through knuckles, claw facing camera
-  else hold.rotation.set(Math.PI/2+.28,.18,.4); // −Z tip → +Y, then tip up-right
+  hold.position.set(0,.01,0);
+  hold.rotation.set(kar?0:Math.PI/2,0,0); // karambit tip already +Y; stock knife tip −Z → +Y
   hold.scale.set(1,1,1)}
 function viewCat(id){if(id==='awp')return'sniper';if(id==='mp9')return'smg';if(id==='glock'||id==='deagle')return'pistol';if(id==='he'||id==='flash'||id==='smoke')return'nade';if(id==='knife')return'knife';return'rifle'}
 const VIEW_POSE={
@@ -1249,12 +1248,12 @@ function prepareWeapon(scene,kind,id){const root=new THREE.Group();root.add(scen
 let isKaram=false;root.traverse(o=>{if(/karambit/i.test(o.name||''))isKaram=true;if(!o.isMesh)return;o.castShadow=true;o.frustumCulled=false;const mats=Array.isArray(o.material)?o.material:[o.material];mats.forEach(m=>{if(!m)return;if(m.map){m.map.encoding=THREE.sRGBEncoding;m.map.needsUpdate=true}m.side=THREE.DoubleSide;m.transparent=false;m.opacity=1;m.depthWrite=true;m.needsUpdate=true})});
 if(id==='smoke')isolateLargestMesh(root);
 root.userData.kind=kind;
-// Karambit: tip up, claw curling left, finger-ring at the origin (same point as the fist).
+// Karambit: finger-ring at origin, tip along +Y (fist finger axis), claw along −X (toward palm/camera).
 if(isKaram){root.userData.karambit=1;root.position.set(0,0,0);root.quaternion.identity();root.scale.set(1,1,1);root.updateMatrixWorld(true);
   let box=new THREE.Box3().setFromObject(root),size=box.getSize(new THREE.Vector3());
-  // Source: X=thickness, Y=handle→tip (ring at −Y), Z=claw depth
+  // Source: X=thickness, Y=handle→tip (ring at −Y), Z=claw depth → Ry(+π/2) keeps tip on +Y, claw on −X
   const ringLocal=new THREE.Vector3((box.min.x+box.max.x)*.5,box.min.y+size.y*.08,(box.min.z+box.max.z)*.5);
-  const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(.1,-Math.PI/2,0));
+  const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(.05,Math.PI/2,0));
   root.quaternion.copy(q);root.position.copy(ringLocal).applyQuaternion(q).negate();root.updateMatrixWorld(true);
   box=new THREE.Box3().setFromObject(root);size=box.getSize(new THREE.Vector3());
   const longest=Math.max(size.x,size.y,size.z)||1,sc=.17/longest;root.scale.setScalar(sc);
