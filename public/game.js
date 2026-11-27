@@ -298,12 +298,12 @@ const _ax=new THREE.Vector3(),_ay=new THREE.Vector3(),_az=new THREE.Vector3(),_a
 // per-weapon overrides, merged per hand over the category pose
 const ARM_WPN={
 // AK: right on pistol grip, left cups handguard from screen-left (f/p — must clear rifle `up` or palm floats under the gun)
-ak:{R:{at:[0,-.03,.048],f:[-.12,.4,-.9],p:[-1,.05,0]},L:{mag:0,up:0,at:[0,.0,-.12],f:[.55,.28,-.78],p:[-.15,1,0]},O:null,K:null},
+ak:{R:{at:[0,-.03,.048],f:[-.12,.4,-.9],p:[-1,.05,0]},L:{mag:0,up:0,at:[0,.028,-.12],f:[.55,.28,-.78],p:[-.15,1,0]},O:null,K:null},
 m4:{L:{at:[0,-.02,0],up:[0,1,.26],p:[1,0,0]},O:null,K:null},
 awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]},O:null,K:null},
 // right hand on the magazine grip, left on the front vertical grip
 mp9:{R:{at:[0,-.045,-.05],f:[-.1,.4,-.9],p:[-1,0,0]},L:{at:[0,-.01,-.168],f:[.35,.35,-.87],p:[1,0,.4]},O:null,K:null}};
-function poseArms(cat){if(!viewGlove)return;const u=viewGlove.userData,key=cat+':'+vmId()+':v3';if(u.cat===key)return;u.cat=key;
+function poseArms(cat){if(!viewGlove)return;const u=viewGlove.userData,key=cat+':'+vmId()+':v4';if(u.cat===key)return;u.cat=key;
 const B=ARM_POSE[cat]||ARM_POSE.rifle,X=ARM_WPN[vmId()]||{},P={};
 for(const s of ['L','R','O','K']){if(X[s]===null||!(B[s]||X[s]))continue;const c=Object.assign({},B[s],X[s]);
   // Weapon f/p grip wins over category mag `up` — leftover up made the AK left hand float palm-up
