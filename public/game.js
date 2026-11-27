@@ -210,16 +210,18 @@ hold.rotation.set(f.rx||0,f.ry||0,f.rz||0);
 const off=vp.hold||[0,0,0];hold.position.set(off[0],off[1],off[2]);hold.position.x+=f.x||0;hold.position.y+=f.y||0;hold.position.z+=f.z||0;
 gun.add(hold);gun.add(flash);gun.userData.wpnHold=hold;
 flash.position.set(0,.02,-want*.55);gun.scale.setScalar(1);gun.userData.loaded=true;gun.userData.viewCat=cat;gun.userData.karambit=!!tpl.userData.karambit;return true}
-// Parent knife into the fist. Fist local: +Y=fingers. Ring at origin = in the curl. Tip down-right.
+// Parent knife into the fist. Fist local: +Y = out through the fingers.
+function clearFistExtras(fist,keep){if(!fist)return;for(let i=fist.children.length-1;i>=0;i--){const ch=fist.children[i];if(ch.isMesh||ch===keep)continue;fist.remove(ch)}}
 function seatKnifeInFist(){if(!gun||!viewGlove)return;const hold=gun.userData.wpnHold,fist=viewGlove.userData.arms&&viewGlove.userData.arms.K;
   if(!hold)return;
-  if(viewCat(vmId())!=='knife'||!fist){if(hold.parent&&hold.parent!==gun)gun.attach(hold);return}
-  // Drop any leftover weapon groups stuck on the fist from earlier swaps
-  for(let i=fist.children.length-1;i>=0;i--){const ch=fist.children[i];if(!ch.isMesh&&ch!==hold)fist.remove(ch)}
+  if(viewCat(vmId())!=='knife'||!fist){if(hold.parent&&hold.parent!==gun)gun.attach(hold);clearFistExtras(fist);return}
+  clearFistExtras(fist,hold);
   if(hold.parent!==fist)fist.add(hold);
-  // Ring in the curl; tip angled up and to the right (was flat horizontal behind the fist)
-  hold.position.set(0,.01,0);
-  hold.rotation.set(.35,.2,Math.PI/2);
+  // Ring in the curl. Karambit tip is already +Y after prepareWeapon; stock knife tip is −Z.
+  const kar=!!gun.userData.karambit;
+  hold.position.set(0,kar?.008:.012,0);
+  if(kar)hold.rotation.set(.4,.2,.55); // tip up-right through knuckles, claw facing camera
+  else hold.rotation.set(Math.PI/2+.28,.18,.4); // −Z tip → +Y, then tip up-right
   hold.scale.set(1,1,1)}
 function viewCat(id){if(id==='awp')return'sniper';if(id==='mp9')return'smg';if(id==='glock'||id==='deagle')return'pistol';if(id==='he'||id==='flash'||id==='smoke')return'nade';if(id==='knife')return'knife';return'rifle'}
 const VIEW_POSE={
@@ -295,17 +297,20 @@ return{at:[x,y,fz+.018],up:[0,1,s]}}
 const _ax=new THREE.Vector3(),_ay=new THREE.Vector3(),_az=new THREE.Vector3(),_am=new THREE.Matrix4();
 // per-weapon overrides, merged per hand over the category pose
 const ARM_WPN={
-// AK two-hand hold: right on pistol grip (from screen-right), left under handguard (from screen-left — same f/p as SMG)
-ak:{R:{at:[0,-.035,.05],f:[-.12,.4,-.9],p:[-1,.05,0]},L:{mag:0,at:[0,-.02,-.14],f:[.55,.25,-.8],p:[-.2,1,0]},O:null,K:null},
+// AK: right on pistol grip, left cups handguard from screen-left (f/p — must clear rifle `up` or palm floats under the gun)
+ak:{R:{at:[0,-.03,.048],f:[-.12,.4,-.9],p:[-1,.05,0]},L:{mag:0,up:0,at:[0,.0,-.12],f:[.55,.28,-.78],p:[-.15,1,0]},O:null,K:null},
 m4:{L:{at:[0,-.02,0],up:[0,1,.26],p:[1,0,0]},O:null,K:null},
 awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]},O:null,K:null},
 // right hand on the magazine grip, left on the front vertical grip
 mp9:{R:{at:[0,-.045,-.05],f:[-.1,.4,-.9],p:[-1,0,0]},L:{at:[0,-.01,-.168],f:[.35,.35,-.87],p:[1,0,.4]},O:null,K:null}};
-function poseArms(cat){if(!viewGlove)return;const u=viewGlove.userData,key=cat+':'+vmId()+':v2';if(u.cat===key)return;u.cat=key;
-const B=ARM_POSE[cat]||ARM_POSE.rifle,X=ARM_WPN[vmId()]||{},P={};for(const s of ['L','R','O','K'])if(X[s]!==null&&(B[s]||X[s]))P[s]=Object.assign({},B[s],X[s]);
+function poseArms(cat){if(!viewGlove)return;const u=viewGlove.userData,key=cat+':'+vmId()+':v3';if(u.cat===key)return;u.cat=key;
+const B=ARM_POSE[cat]||ARM_POSE.rifle,X=ARM_WPN[vmId()]||{},P={};
+for(const s of ['L','R','O','K']){if(X[s]===null||!(B[s]||X[s]))continue;const c=Object.assign({},B[s],X[s]);
+  // Weapon f/p grip wins over category mag `up` — leftover up made the AK left hand float palm-up
+  if(X[s]&&(X[s].f||X[s].up===0))delete c.up;P[s]=c}
 // Hard-reset every arm, then enable only what this weapon needs (kills floating knife/open hands on the AK)
-for(const s of ['L','R','O','K']){const pv=u.arms[s];if(!pv)continue;pv.visible=false;pv.scale.set(1,1,1);pv.position.set(0,0,0);pv.quaternion.identity()}
-for(const s of ['L','R','O','K']){const pv=u.arms[s],c=P[s];if(!pv||!c)continue;pv.visible=true;
+for(const s of ['L','R','O','K']){const pv=u.arms[s];if(!pv)continue;pv.visible=false;pv.scale.set(1,1,1);pv.position.set(0,0,0);pv.quaternion.identity();pv.traverse(o=>{if(o.isMesh)o.visible=false})}
+for(const s of ['L','R','O','K']){const pv=u.arms[s],c=P[s];if(!pv||!c)continue;pv.visible=true;pv.traverse(o=>{if(o.isMesh)o.visible=true});
 // cam: at/f/p are in camera space (screen-anchored), so undo the gun's rest pose
 if(c.cam){const vp=VIEW_POSE[cat]||VIEW_POSE.rifle,q=new THREE.Quaternion().setFromEuler(new THREE.Euler(vp.tip||0,vp.ry||0,vp.rz||0)).invert(),
 o=new THREE.Vector3(vp.gx,vp.gy-(VM_DROP[cat]||0),vp.gz+(VIEW_Z[vmId()]||0)).multiplyScalar(1/(VM_ZOOM[cat]||1));
