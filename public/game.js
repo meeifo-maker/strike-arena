@@ -253,7 +253,7 @@ rifle:{L:{mag:1,at:[0,-.06,-.02],up:[0,.88,.47],p:[1,0,0]}},
 sniper:{L:{at:[0,.01,-.16],f:[.55,.25,-.8],p:[-.2,1,0]}},
 nade:{R:{at:[0,-.01,.02],f:[-.1,.3,-.95],p:[-1,0,0]}},
 // knife: fist lower-right (knife is parented here); open left hand on the left
-knife:{K:{at:[.04,-.02,.06],f:[.3,.6,-.5],p:[.85,-.4,.15]},O:{cam:1,at:[-.22,-.15,-.3],f:[.3,.9,-.2],p:[.5,0,-.8]}}};
+knife:{K:{at:[.04,-.02,.06],f:[-.6,.3,-.5],p:[.85,-.4,.15]},O:{cam:1,at:[-.22,-.15,-.3],f:[.3,.9,-.2],p:[.5,0,-.8]}}};
 // knuckle line height, finger centre-line x and curl radius, in the model's rest-pose units
 const ARM_SCALE=.42,ARM_KN=.285,ARM_FX=.025,ARM_CR=.075;
 let gloveTpl=null,gloveState='idle',viewGlove=null;
