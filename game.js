@@ -217,10 +217,10 @@ function seatKnifeInFist(){if(!gun||!viewGlove)return;const hold=gun.userData.wp
   if(viewCat(vmId())!=='knife'||!fist){if(hold.parent&&hold.parent!==gun)gun.attach(hold);clearFistExtras(fist);return}
   clearFistExtras(fist,hold);
   if(hold.parent!==fist)fist.add(hold);
-  // Ring in the knuckle curl. Extra Euler rolls were shoving the blade out the side of the fist.
+  // Ring in the knuckle curl. Tip stays on +Y; ry spins the blade (negative = left on screen).
   const kar=!!gun.userData.karambit;
   hold.position.set(0,.01,0);
-  hold.rotation.set(kar?0:Math.PI/2,0,0); // karambit tip already +Y; stock knife tip −Z → +Y
+  hold.rotation.set(kar?0:Math.PI/2,kar?-75*Math.PI/180:0,0); // karambit tip already +Y; stock knife tip −Z → +Y
   hold.scale.set(1,1,1)}
 function viewCat(id){if(id==='awp')return'sniper';if(id==='mp9')return'smg';if(id==='glock'||id==='deagle')return'pistol';if(id==='he'||id==='flash'||id==='smoke')return'nade';if(id==='knife')return'knife';return'rifle'}
 const VIEW_POSE={
