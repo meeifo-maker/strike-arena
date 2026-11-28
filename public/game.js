@@ -220,8 +220,8 @@ function seatKnifeInFist(){if(!gun||!viewGlove)return;const hold=gun.userData.wp
   // Ring in the knuckle curl. Hand pose untouched — only the knife rotates.
   const kar=!!gun.userData.karambit;
   hold.position.set(0,.01,0);
-  // karambit: tip left (fist +X), flat toward camera (not the cutting edge)
-  hold.rotation.set(kar?0:Math.PI/2,kar?Math.PI:0,kar?-Math.PI/2:0);
+  // karambit: tip left (fist +X), flat toward camera, sharp edge facing left
+  hold.rotation.set(kar?0:Math.PI/2,0,kar?-Math.PI/2:0);
   hold.scale.set(1,1,1)}
 function viewCat(id){if(id==='awp')return'sniper';if(id==='mp9')return'smg';if(id==='glock'||id==='deagle')return'pistol';if(id==='he'||id==='flash'||id==='smoke')return'nade';if(id==='knife')return'knife';return'rifle'}
 const VIEW_POSE={
