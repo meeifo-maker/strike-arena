@@ -210,18 +210,35 @@ hold.rotation.set(f.rx||0,f.ry||0,f.rz||0);
 const off=vp.hold||[0,0,0];hold.position.set(off[0],off[1],off[2]);hold.position.x+=f.x||0;hold.position.y+=f.y||0;hold.position.z+=f.z||0;
 gun.add(hold);gun.add(flash);gun.userData.wpnHold=hold;
 flash.position.set(0,.02,-want*.55);gun.scale.setScalar(1);gun.userData.loaded=true;gun.userData.viewCat=cat;gun.userData.karambit=!!tpl.userData.karambit;return true}
-// Parent knife into the fist. Fist local: +Y = out through the fingers (tip must stay on +Y).
+// Seat the knife, then put the fist on it (karambit stays fixed in gun space so the hand can move alone).
 function clearFistExtras(fist,keep){if(!fist)return;for(let i=fist.children.length-1;i>=0;i--){const ch=fist.children[i];if(ch.isMesh||ch===keep)continue;fist.remove(ch)}}
 function seatKnifeInFist(){if(!gun||!viewGlove)return;const hold=gun.userData.wpnHold,fist=viewGlove.userData.arms&&viewGlove.userData.arms.K;
   if(!hold)return;
   if(viewCat(vmId())!=='knife'||!fist){if(hold.parent&&hold.parent!==gun)gun.attach(hold);clearFistExtras(fist);return}
   clearFistExtras(fist,hold);
-  if(hold.parent!==fist)fist.add(hold);
-  // Ring in the knuckle curl. Hand pose untouched — only the knife rotates.
   const kar=!!gun.userData.karambit;
+  if(kar){
+    // Bake knife pose once from the fist, freeze it on the gun, then snap the fist onto the ring
+    if(!hold.userData.seatedGun){
+      if(hold.parent!==fist)fist.add(hold);
+      hold.position.set(0,.01,0);
+      hold.rotation.set(0,0,-Math.PI/2); // tip left, flat to camera, sharp left
+      hold.scale.set(1,1,1);
+      fist.updateMatrixWorld(true);
+      gun.attach(hold);
+      hold.userData.seatedGun=1;
+    }else if(hold.parent!==gun)gun.attach(hold);
+    fist.position.copy(hold.position);
+    _ay.set(0,1,0).applyQuaternion(hold.quaternion).normalize();
+    _ax.set(-1,0,0).applyQuaternion(hold.quaternion);
+    _ax.addScaledVector(_ay,-_ax.dot(_ay)).normalize().negate();
+    _az.crossVectors(_ax,_ay);
+    if(_az.lengthSq()<1e-8){_ax.set(0,0,1).applyQuaternion(hold.quaternion);_ax.addScaledVector(_ay,-_ax.dot(_ay)).normalize().negate();_az.crossVectors(_ax,_ay)}
+    _am.makeBasis(_ax,_ay,_az);fist.quaternion.setFromRotationMatrix(_am);
+    return}
+  if(hold.parent!==fist)fist.add(hold);
   hold.position.set(0,.01,0);
-  // karambit: tip left (fist +X), flat toward camera, sharp edge facing left
-  hold.rotation.set(kar?0:Math.PI/2,0,kar?-Math.PI/2:0);
+  hold.rotation.set(Math.PI/2,0,0);
   hold.scale.set(1,1,1)}
 function viewCat(id){if(id==='awp')return'sniper';if(id==='mp9')return'smg';if(id==='glock'||id==='deagle')return'pistol';if(id==='he'||id==='flash'||id==='smoke')return'nade';if(id==='knife')return'knife';return'rifle'}
 const VIEW_POSE={
@@ -303,7 +320,7 @@ m4:{L:{at:[0,-.02,0],up:[0,1,.26],p:[1,0,0]},O:null,K:null},
 awp:{L:{at:[0,-.015,-.11],up:[0,.1,-1],p:[-1,1.2,0]},O:null,K:null},
 // right hand on the magazine grip, left on the front vertical grip
 mp9:{R:{at:[0,-.045,-.05],f:[-.1,.4,-.9],p:[-1,0,0]},L:{at:[0,-.01,-.168],f:[.35,.35,-.87],p:[1,0,.4]},O:null,K:null}};
-function poseArms(cat){if(!viewGlove)return;const u=viewGlove.userData,key=cat+':'+vmId()+':v4';if(u.cat===key)return;u.cat=key;
+function poseArms(cat){if(!viewGlove)return;const u=viewGlove.userData,key=cat+':'+vmId()+':v5';if(u.cat===key)return;u.cat=key;
 const B=ARM_POSE[cat]||ARM_POSE.rifle,X=ARM_WPN[vmId()]||{},P={};
 for(const s of ['L','R','O','K']){if(X[s]===null||!(B[s]||X[s]))continue;const c=Object.assign({},B[s],X[s]);
   // Weapon f/p grip wins over category mag `up` — leftover up made the AK left hand float palm-up
